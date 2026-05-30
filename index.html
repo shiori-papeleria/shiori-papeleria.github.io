@@ -523,8 +523,9 @@ async function sincronizarHojas() {
   try {
     const ventasOrden = [...data.ventas].sort((a,b) => a.fecha.localeCompare(b.fecha));
     const gastosOrden = [...data.gastos].sort((a,b) => a.fecha.localeCompare(b.fecha));
+    const aportesOrden = [...data.aportes].sort((a,b) => a.fecha.localeCompare(b.fecha));
 
-    // LIBRO_VENTAS
+    // LIBRO_VENTAS — solo ventas operacionales (sin aportes de socios)
     const filasLV = [['#','Fecha','Tipo de servicio','Descripción','Medio de pago','Monto']];
     ventasOrden.forEach((v,i) => filasLV.push([i+1, v.fecha, v.tipo, v.desc||'', v.pago, v.monto]));
     const totalV = ventasOrden.reduce((s,v) => s+v.monto, 0);
@@ -532,30 +533,14 @@ async function sincronizarHojas() {
     await limpiarHoja('LIBRO_VENTAS');
     await escribirHoja('LIBRO_VENTAS', filasLV);
 
-    // LIBRO_COMPRAS
-    const gastosCompras = gastosOrden.filter(g => g.cat !== 'Aporte de socios');
+    // LIBRO_COMPRAS — solo gastos operacionales (sin activos fijos ni aportes)
+    const gastosCompras = gastosOrden.filter(g => g.cat !== 'Aporte de socios' && g.cat !== 'Activo fijo (equipos)');
     const filasLC = [['#','Fecha','Categoría','Proveedor','N° Documento','Descripción','Monto']];
     gastosCompras.forEach((g,i) => filasLC.push([i+1, g.fecha, g.cat, g.prov||'', g.boleta||'', g.desc||'', g.monto]));
     const totalG = gastosCompras.reduce((s,g) => s+g.monto, 0);
     filasLC.push(['','','','','','TOTAL', totalG]);
     await limpiarHoja('LIBRO_COMPRAS');
     await escribirHoja('LIBRO_COMPRAS', filasLC);
-
-    // LIBRO_CAJA
-    const aportesOrden = [...data.aportes].sort((a,b) => a.fecha.localeCompare(b.fecha));
-    const movs = [
-      ...aportesOrden.map(v => ({fecha:v.fecha, concepto:v.tipo+(v.desc?' — '+v.desc:''), haber:v.monto, debe:0})),
-      ...ventasOrden.map(v => ({fecha:v.fecha, concepto:v.tipo+(v.desc?' — '+v.desc:''), haber:v.monto, debe:0})),
-      ...gastosOrden.map(g => ({fecha:g.fecha, concepto:g.cat+(g.desc?' — '+g.desc:''), haber:0, debe:g.monto}))
-    ].sort((a,b) => a.fecha.localeCompare(b.fecha));
-    const filasLC2 = [['#','Fecha','Concepto','Haber (Ingreso)','Debe (Egreso)','Saldo']];
-    let saldo = 0;
-    movs.forEach((m,i) => {
-      saldo += m.haber - m.debe;
-      filasLC2.push([i+1, m.fecha, m.concepto, m.haber||'', m.debe||'', saldo]);
-    });
-    await limpiarHoja('LIBRO_CAJA');
-    await escribirHoja('LIBRO_CAJA', filasLC2);
 
     // BALANCE
     const mesesSet = new Set();
@@ -564,18 +549,35 @@ async function sincronizarHojas() {
     const mesesList = Array.from(mesesSet).sort();
     const filasB = [['Mes','Ingresos (Haber)','Egresos (Debe)','Resultado']];
     mesesList.forEach(mes => {
-      const vs = data.ventas.filter(v => v.fecha.startsWith(mes));
+      const vs = data.ventas.filter(v => v.fecha.startsWith(mes)); // ya excluye aportes
       const gs = data.gastos.filter(g => g.fecha.startsWith(mes) && g.cat !== 'Aporte de socios' && g.cat !== 'Activo fijo (equipos)');
       const tv = vs.reduce((s,v) => s+v.monto, 0);
       const tg = gs.reduce((s,g) => s+g.monto, 0);
       const [y,mo] = mes.split('-');
       filasB.push([MESES[parseInt(mo)-1]+' '+y, tv, tg, tv-tg]);
     });
-    const totalVB = data.ventas.reduce((s,v) => s+v.monto, 0);
+    const totalVB = data.ventas.reduce((s,v) => s+v.monto, 0); // ya excluye aportes
     const totalGB = data.gastos.filter(g => g.cat !== 'Aporte de socios' && g.cat !== 'Activo fijo (equipos)').reduce((s,g) => s+g.monto, 0);
     filasB.push(['TOTAL ACUMULADO', totalVB, totalGB, totalVB-totalGB]);
     await limpiarHoja('BALANCE');
     await escribirHoja('BALANCE', filasB);
+
+    // APORTES
+    const filasAp = [['#','Fecha','Concepto','Descripción','Medio de pago','Monto']];
+    aportesOrden.forEach((v,i) => filasAp.push([i+1, v.fecha, 'Aporte de socios', v.desc||'', v.pago||'', v.monto]));
+    const totalAp = aportesOrden.reduce((s,v) => s+v.monto, 0);
+    filasAp.push(['','','','','TOTAL', totalAp]);
+    await limpiarHoja('APORTES');
+    await escribirHoja('APORTES', filasAp);
+
+    // ACTIVOS_FIJOS
+    const activosOrden = [...data.gastos].filter(g => g.cat === 'Activo fijo (equipos)').sort((a,b) => a.fecha.localeCompare(b.fecha));
+    const filasAF = [['#','Fecha adquisición','Descripción','Proveedor','N° Documento','Valor de compra']];
+    activosOrden.forEach((g,i) => filasAF.push([i+1, g.fecha, g.desc||g.cat, g.prov||'', g.boleta||'', g.monto]));
+    const totalAF = activosOrden.reduce((s,g) => s+g.monto, 0);
+    filasAF.push(['','','','','TOTAL', totalAF]);
+    await limpiarHoja('ACTIVOS_FIJOS');
+    await escribirHoja('ACTIVOS_FIJOS', filasAF);
 
     mostrarToast('✓ Planilla sincronizada');
   } catch(e) {
