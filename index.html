@@ -413,7 +413,7 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
 const MESES_KEY = ['01','02','03','04','05','06','07','08','09','10','11','12'];
 
 let tokenClient, accessToken;
-let data = { ventas: [], gastos: [] };
+let data = { ventas: [], gastos: [], aportes: [] };
 let cargando = false;
 
 // AUTH
@@ -450,7 +450,7 @@ async function obtenerInfoUsuario() {
 function cerrarSesion() {
   google.accounts.oauth2.revoke(accessToken);
   accessToken = null;
-  data = { ventas: [], gastos: [] };
+  data = { ventas: [], gastos: [], aportes: [] };
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
 }
@@ -481,9 +481,11 @@ async function cargarDatos() {
   try {
     const ventas = await leerHoja('VENTAS');
     const gastos = await leerHoja('GASTOS');
-    data.ventas = (ventas.slice(1) || []).map(r => ({
+    const todasVentas = (ventas.slice(1) || []).map(r => ({
       id: r[0], fecha: r[1], tipo: r[2], monto: parseFloat(r[3]) || 0, pago: r[4], desc: r[5] || ''
     })).filter(v => v.fecha);
+    data.ventas = todasVentas.filter(v => v.tipo !== 'Aporte de socios');
+    data.aportes = todasVentas.filter(v => v.tipo === 'Aporte de socios');
     data.gastos = (gastos.slice(1) || []).map(r => ({
       id: r[0], fecha: r[1], cat: r[2], monto: parseFloat(r[3]) || 0, prov: r[4] || '', boleta: r[5] || '', desc: r[6] || ''
     })).filter(g => g.fecha);
@@ -540,7 +542,9 @@ async function sincronizarHojas() {
     await escribirHoja('LIBRO_COMPRAS', filasLC);
 
     // LIBRO_CAJA
+    const aportesOrden = [...data.aportes].sort((a,b) => a.fecha.localeCompare(b.fecha));
     const movs = [
+      ...aportesOrden.map(v => ({fecha:v.fecha, concepto:v.tipo+(v.desc?' — '+v.desc:''), haber:v.monto, debe:0})),
       ...ventasOrden.map(v => ({fecha:v.fecha, concepto:v.tipo+(v.desc?' — '+v.desc:''), haber:v.monto, debe:0})),
       ...gastosOrden.map(g => ({fecha:g.fecha, concepto:g.cat+(g.desc?' — '+g.desc:''), haber:0, debe:g.monto}))
     ].sort((a,b) => a.fecha.localeCompare(b.fecha));
@@ -754,9 +758,10 @@ function renderGastos() {
 
 function renderCaja() {
   const mes = document.getElementById('c-mes').value;
+  const ap = filtrarMes(data.aportes, mes).map(v=>({fecha:v.fecha,concepto:v.tipo+(v.desc?' — '+v.desc:''),tipo:'Haber',monto:v.monto}));
   const vs = filtrarMes(data.ventas, mes).map(v=>({fecha:v.fecha,concepto:v.tipo+(v.desc?' — '+v.desc:''),tipo:'Haber',monto:v.monto}));
   const gs = filtrarMes(data.gastos, mes).map(g=>({fecha:g.fecha,concepto:g.cat+(g.desc?' — '+g.desc:''),tipo:'Debe',monto:g.monto}));
-  const movs = [...vs,...gs].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const movs = [...ap,...vs,...gs].sort((a,b)=>a.fecha.localeCompare(b.fecha));
   if (!movs.length) { document.getElementById('caja-tabla').innerHTML = `<div class="vacio"><div class="vacio-icono">📒</div>Sin movimientos este mes</div>`; return; }
   let saldo = 0;
   const rows = movs.map((m,i) => {
