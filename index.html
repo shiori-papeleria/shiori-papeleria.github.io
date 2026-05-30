@@ -490,8 +490,92 @@ async function cargarDatos() {
     data.ventas.sort((a,b) => b.fecha.localeCompare(a.fecha));
     data.gastos.sort((a,b) => b.fecha.localeCompare(a.fecha));
     mostrarToast('✓ Datos cargados');
+    await sincronizarHojas();
   } catch(e) {
     mostrarToast('Error al cargar datos');
+  }
+}
+
+async function limpiarHoja(hoja) {
+  await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${hoja}:clear`,
+    {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' }
+    }
+  );
+}
+
+async function escribirHoja(hoja, filas) {
+  await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${hoja}?valueInputOption=RAW`,
+    {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: filas })
+    }
+  );
+}
+
+async function sincronizarHojas() {
+  try {
+    const ventasOrden = [...data.ventas].sort((a,b) => a.fecha.localeCompare(b.fecha));
+    const gastosOrden = [...data.gastos].sort((a,b) => a.fecha.localeCompare(b.fecha));
+
+    // LIBRO_VENTAS
+    const filasLV = [['#','Fecha','Tipo de servicio','Descripción','Medio de pago','Monto']];
+    ventasOrden.forEach((v,i) => filasLV.push([i+1, v.fecha, v.tipo, v.desc||'', v.pago, v.monto]));
+    const totalV = ventasOrden.reduce((s,v) => s+v.monto, 0);
+    filasLV.push(['','','','','TOTAL', totalV]);
+    await limpiarHoja('LIBRO_VENTAS');
+    await escribirHoja('LIBRO_VENTAS', filasLV);
+
+    // LIBRO_COMPRAS
+    const gastosCompras = gastosOrden.filter(g => g.cat !== 'Aporte de socios');
+    const filasLC = [['#','Fecha','Categoría','Proveedor','N° Documento','Descripción','Monto']];
+    gastosCompras.forEach((g,i) => filasLC.push([i+1, g.fecha, g.cat, g.prov||'', g.boleta||'', g.desc||'', g.monto]));
+    const totalG = gastosCompras.reduce((s,g) => s+g.monto, 0);
+    filasLC.push(['','','','','','TOTAL', totalG]);
+    await limpiarHoja('LIBRO_COMPRAS');
+    await escribirHoja('LIBRO_COMPRAS', filasLC);
+
+    // LIBRO_CAJA
+    const movs = [
+      ...ventasOrden.map(v => ({fecha:v.fecha, concepto:v.tipo+(v.desc?' — '+v.desc:''), haber:v.monto, debe:0})),
+      ...gastosOrden.map(g => ({fecha:g.fecha, concepto:g.cat+(g.desc?' — '+g.desc:''), haber:0, debe:g.monto}))
+    ].sort((a,b) => a.fecha.localeCompare(b.fecha));
+    const filasLC2 = [['#','Fecha','Concepto','Haber (Ingreso)','Debe (Egreso)','Saldo']];
+    let saldo = 0;
+    movs.forEach((m,i) => {
+      saldo += m.haber - m.debe;
+      filasLC2.push([i+1, m.fecha, m.concepto, m.haber||'', m.debe||'', saldo]);
+    });
+    await limpiarHoja('LIBRO_CAJA');
+    await escribirHoja('LIBRO_CAJA', filasLC2);
+
+    // BALANCE
+    const mesesSet = new Set();
+    data.ventas.forEach(v => mesesSet.add(v.fecha.substring(0,7)));
+    data.gastos.forEach(g => mesesSet.add(g.fecha.substring(0,7)));
+    const mesesList = Array.from(mesesSet).sort();
+    const filasB = [['Mes','Ingresos (Haber)','Egresos (Debe)','Resultado']];
+    mesesList.forEach(mes => {
+      const vs = data.ventas.filter(v => v.fecha.startsWith(mes));
+      const gs = data.gastos.filter(g => g.fecha.startsWith(mes) && g.cat !== 'Aporte de socios' && g.cat !== 'Activo fijo (equipos)');
+      const tv = vs.reduce((s,v) => s+v.monto, 0);
+      const tg = gs.reduce((s,g) => s+g.monto, 0);
+      const [y,mo] = mes.split('-');
+      filasB.push([MESES[parseInt(mo)-1]+' '+y, tv, tg, tv-tg]);
+    });
+    const totalVB = data.ventas.reduce((s,v) => s+v.monto, 0);
+    const totalGB = data.gastos.filter(g => g.cat !== 'Aporte de socios' && g.cat !== 'Activo fijo (equipos)').reduce((s,g) => s+g.monto, 0);
+    filasB.push(['TOTAL ACUMULADO', totalVB, totalGB, totalVB-totalGB]);
+    await limpiarHoja('BALANCE');
+    await escribirHoja('BALANCE', filasB);
+
+    mostrarToast('✓ Planilla sincronizada');
+  } catch(e) {
+    console.error('Error sincronizando hojas:', e);
   }
 }
 
@@ -581,6 +665,7 @@ async function agregarVenta() {
     poblarSelectores();
     renderVentas();
     renderResumen();
+    await sincronizarHojas();
     mostrarToast('✓ Venta registrada');
   } catch(e) { mostrarToast('Error al guardar'); }
   document.getElementById('v-loading').style.display = 'none';
@@ -612,6 +697,7 @@ async function agregarGasto() {
     poblarSelectores();
     renderGastos();
     renderResumen();
+    await sincronizarHojas();
     mostrarToast('✓ Gasto registrado');
   } catch(e) { mostrarToast('Error al guardar'); }
   document.getElementById('g-loading').style.display = 'none';
