@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shiori — Contabilidad</title>
+<style>
+  :root {
+    --verde: #a8d5b5;
+    --verde-claro: #e8f5ed;
+    --verde-texto: #2d6a4f;
+    --rosa: #f5c6c6;
+    --rosa-claro: #fdf0f0;
+    --rosa-texto: #8b2e2e;
+    --lavanda: #c9c0e8;
+    --lavanda-claro: #f0eefb;
+    --lavanda-texto: #4a3a8a;
+    --amarillo: #fde9a2;
+    --amarillo-claro: #fffbee;
+    --amarillo-texto: #7a5c00;
+    --gris: #f7f6f4;
+    --gris-borde: #e0ddd8;
+    --gris-texto: #888580;
+    --texto: #2c2c2a;
+    --texto-suave: #666360;
+    --blanco: #ffffff;
+    --radio: 10px;
+    --radio-sm: 6px;
+    --sombra: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--gris); color: var(--texto); font-size: 15px; }
+  
+  /* AUTH */
+  #auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
+  .auth-card { background: var(--blanco); border-radius: 16px; padding: 2.5rem; max-width: 400px; width: 100%; text-align: center; border: 1px solid var(--gris-borde); }
+  .auth-logo { font-size: 2.5rem; margin-bottom: 0.5rem; }
+  .auth-titulo { font-size: 22px; font-weight: 600; margin-bottom: 0.25rem; }
+  .auth-subtitulo { font-size: 13px; color: var(--gris-texto); margin-bottom: 2rem; }
+  .btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px; border: 1px solid var(--gris-borde); border-radius: var(--radio); background: var(--blanco); cursor: pointer; font-size: 15px; font-weight: 500; transition: background 0.15s; }
+  .btn-google:hover { background: var(--gris); }
+  .btn-google svg { width: 20px; height: 20px; }
+  .auth-nota { font-size: 12px; color: var(--gris-texto); margin-top: 1.5rem; }
+
+  /* APP */
+  #app { display: none; min-height: 100vh; }
+  
+  /* HEADER */
+  .header { background: var(--blanco); border-bottom: 1px solid var(--gris-borde); padding: 0 1.5rem; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .header-logo { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .header-logo span { font-size: 22px; }
+  .header-usuario { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--gris-texto); }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--lavanda); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--lavanda-texto); }
+  .btn-salir { background: none; border: 1px solid var(--gris-borde); border-radius: var(--radio-sm); padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--gris-texto); }
+  .btn-salir:hover { background: var(--gris); }
+
+  /* NAV */
+  .nav { background: var(--blanco); border-bottom: 1px solid var(--gris-borde); display: flex; overflow-x: auto; padding: 0 1rem; gap: 4px; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-btn { padding: 14px 16px; font-size: 13px; font-weight: 500; color: var(--gris-texto); border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
+  .nav-btn.active { color: var(--verde-texto); border-bottom-color: var(--verde-texto); }
+  .nav-btn:hover:not(.active) { color: var(--texto); }
+
+  /* CONTENIDO */
+  .contenido { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
+  .seccion { display: none; }
+  .seccion.active { display: block; }
+
+  /* MÉTRICAS */
+  .metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+  .metrica { background: var(--blanco); border: 1px solid var(--gris-borde); border-radius: var(--radio); padding: 1rem 1.25rem; }
+  .metrica-label { font-size: 11px; color: var(--gris-texto); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .metrica-valor { font-size: 22px; font-weight: 600; }
+  .metrica-valor.verde { color: var(--verde-texto); }
+  .metrica-valor.rosa { color: var(--rosa-texto); }
+  .metrica-valor.lavanda { color: var(--lavanda-texto); }
+  .metrica-valor.amarillo { color: var(--amarillo-texto); }
+
+  /* TARJETAS */
+  .tarjeta { background: var(--blanco); border: 1px solid var(--gris-borde); border-radius: var(--radio); padding: 1.25rem; margin-bottom: 1rem; }
+  .tarjeta-titulo { font-size: 14px; font-weight: 600; margin-bottom: 1rem; color: var(--texto); display: flex; align-items: center; gap: 8px; }
+  .tarjeta-titulo .icono { width: 28px; height: 28px; border-radius: var(--radio-sm); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .icono-verde { background: var(--verde-claro); }
+  .icono-rosa { background: var(--rosa-claro); }
+  .icono-lavanda { background: var(--lavanda-claro); }
+  .icono-amarillo { background: var(--amarillo-claro); }
+
+  /* FORMULARIOS */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .form-grid.tres { grid-template-columns: 1fr 1fr 1fr; }
+  .form-full { grid-column: 1 / -1; }
+  .campo label { display: block; font-size: 12px; color: var(--gris-texto); margin-bottom: 4px; font-weight: 500; }
+  .campo input, .campo select, .campo textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--gris-borde); border-radius: var(--radio-sm); font-size: 14px; font-family: inherit; background: var(--blanco); color: var(--texto); transition: border 0.15s; }
+  .campo input:focus, .campo select:focus, .campo textarea:focus { outline: none; border-color: var(--verde-texto); }
+  .campo textarea { min-height: 60px; resize: vertical; }
+
+  /* BOTONES */
+  .btn-primario { background: var(--verde-texto); color: var(--blanco); border: none; padding: 10px 20px; border-radius: var(--radio-sm); font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
+  .btn-primario:hover { opacity: 0.85; }
+  .btn-secundario { background: var(--blanco); color: var(--texto-suave); border: 1px solid var(--gris-borde); padding: 8px 14px; border-radius: var(--radio-sm); font-size: 13px; cursor: pointer; transition: background 0.15s; }
+  .btn-secundario:hover { background: var(--gris); }
+  .btn-peligro { background: var(--rosa-claro); color: var(--rosa-texto); border: 1px solid var(--rosa); padding: 5px 10px; border-radius: var(--radio-sm); font-size: 12px; cursor: pointer; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1rem; }
+
+  /* FILTRO MES */
+  .filtro-mes { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .filtro-mes label { font-size: 13px; color: var(--gris-texto); }
+  .filtro-mes select { padding: 6px 10px; border: 1px solid var(--gris-borde); border-radius: var(--radio-sm); font-size: 13px; background: var(--blanco); }
+
+  /* TABLAS */
+  .tabla-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; color: var(--gris-texto); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--gris-borde); text-transform: uppercase; letter-spacing: 0.4px; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--gris-borde); color: var(--texto); }
+  tr:last-child td { border-bottom: none; }
+  tfoot td { font-weight: 600; background: var(--gris); }
+
+  /* BADGES */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .badge-verde { background: var(--verde-claro); color: var(--verde-texto); }
+  .badge-rosa { background: var(--rosa-claro); color: var(--rosa-texto); }
+  .badge-lavanda { background: var(--lavanda-claro); color: var(--lavanda-texto); }
+  .badge-amarillo { background: var(--amarillo-claro); color: var(--amarillo-texto); }
+
+  /* BALANCE */
+  .balance-fila { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--gris-borde); font-size: 14px; }
+  .balance-fila:last-child { border: none; }
+  .balance-fila.total { font-weight: 600; font-size: 15px; padding-top: 12px; }
+  .balance-seccion { margin-bottom: 1.5rem; }
+  .balance-seccion-titulo { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gris-texto); margin-bottom: 8px; }
+
+  /* NOTA */
+  .nota { background: var(--amarillo-claro); border: 1px solid var(--amarillo); border-radius: var(--radio-sm); padding: 10px 14px; font-size: 12px; color: var(--amarillo-texto); margin-top: 1rem; }
+
+  /* VACÍO */
+  .vacio { text-align: center; padding: 2.5rem; color: var(--gris-texto); font-size: 13px; }
+  .vacio-icono { font-size: 2rem; margin-bottom: 0.5rem; }
+
+  /* MÓVIL */
+  @media (max-width: 600px) {
+    .contenido { padding: 1rem; }
+    .form-grid, .form-grid.tres { grid-template-columns: 1fr; }
+    .form-full { grid-column: 1; }
+    .metricas { grid-template-columns: 1fr 1fr; }
+    th:nth-child(3), td:nth-child(3), th:nth-child(4), td:nth-child(4) { display: none; }
+    .header-usuario span { display: none; }
+  }
+
+  /* LOADING */
+  .loading { display: flex; align-items: center; justify-content: center; padding: 2rem; gap: 10px; color: var(--gris-texto); font-size: 13px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--gris-borde); border-top-color: var(--verde-texto); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--texto); color: var(--blanco); padding: 10px 20px; border-radius: 20px; font-size: 13px; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- PANTALLA DE LOGIN -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">📋</div>
+    <div class="auth-titulo">Shiori</div>
+    <div class="auth-subtitulo">Sistema de contabilidad</div>
+    <button class="btn-google" onclick="iniciarSesion()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Ingresar con Google
+    </button>
+    <div class="auth-nota">Usa la cuenta shiori.papeleria@gmail.com</div>
+  </div>
+</div>
+
+<!-- APP PRINCIPAL -->
+<div id="app">
+  <div class="header">
+    <div class="header-logo"><span>📋</span> Shiori</div>
+    <div class="header-usuario">
+      <div class="avatar" id="avatar-inicial">S</div>
+      <span id="nombre-usuario"></span>
+      <button class="btn-salir" onclick="cerrarSesion()">Salir</button>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-btn active" onclick="mostrarSeccion('resumen', this)">📊 Resumen</button>
+    <button class="nav-btn" onclick="mostrarSeccion('ventas', this)">💰 Ventas</button>
+    <button class="nav-btn" onclick="mostrarSeccion('gastos', this)">🧾 Gastos</button>
+    <button class="nav-btn" onclick="mostrarSeccion('caja', this)">📒 Libro de Caja</button>
+    <button class="nav-btn" onclick="mostrarSeccion('libro-ventas', this)">📗 Libro de Ventas</button>
+    <button class="nav-btn" onclick="mostrarSeccion('libro-compras', this)">📘 Libro de Compras</button>
+    <button class="nav-btn" onclick="mostrarSeccion('balance', this)">⚖️ Balance</button>
+  </nav>
+
+  <div class="contenido">
+
+    <!-- RESUMEN -->
+    <div id="s-resumen" class="seccion active">
+      <div class="filtro-mes">
+        <label>Período:</label>
+        <select id="r-mes" onchange="renderResumen()"></select>
+      </div>
+      <div class="metricas" id="r-metricas"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div class="tarjeta">
+          <div class="tarjeta-titulo"><div class="icono icono-verde">💰</div> Últimas ventas</div>
+          <div id="r-ultimas-ventas"></div>
+        </div>
+        <div class="tarjeta">
+          <div class="tarjeta-titulo"><div class="icono icono-rosa">🧾</div> Últimos gastos</div>
+          <div id="r-ultimos-gastos"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VENTAS -->
+    <div id="s-ventas" class="seccion">
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-verde">➕</div> Registrar venta</div>
+        <div class="form-grid tres">
+          <div class="campo">
+            <label>Fecha</label>
+            <input type="date" id="v-fecha">
+          </div>
+          <div class="campo">
+            <label>Tipo de servicio</label>
+            <select id="v-tipo">
+              <option>Impresión B/N</option>
+              <option>Impresión color</option>
+              <option>Anillado</option>
+              <option>Fotocopias</option>
+              <option>Plastificado</option>
+              <option>Otro</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label>Monto ($)</label>
+            <input type="number" id="v-monto" placeholder="0" min="0">
+          </div>
+          <div class="campo">
+            <label>Medio de pago</label>
+            <select id="v-pago">
+              <option>Efectivo</option>
+              <option>Transferencia</option>
+            </select>
+          </div>
+          <div class="campo form-full">
+            <label>Descripción (opcional)</label>
+            <input type="text" id="v-desc" placeholder="Ej: 50 copias A4, tesis doble carta">
+          </div>
+        </div>
+        <button class="btn-primario" onclick="agregarVenta()">Registrar venta</button>
+        <div id="v-loading" style="display:none" class="loading"><div class="spinner"></div> Guardando...</div>
+      </div>
+
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-verde">📋</div> Historial de ventas</div>
+        <div class="filtro-mes">
+          <label>Mes:</label>
+          <select id="vh-mes" onchange="renderVentas()"></select>
+        </div>
+        <div class="tabla-wrap" id="ventas-tabla"></div>
+      </div>
+    </div>
+
+    <!-- GASTOS -->
+    <div id="s-gastos" class="seccion">
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-rosa">➕</div> Registrar gasto</div>
+        <div class="form-grid tres">
+          <div class="campo">
+            <label>Fecha</label>
+            <input type="date" id="g-fecha">
+          </div>
+          <div class="campo">
+            <label>Categoría</label>
+            <select id="g-cat">
+              <option>Papel, tinta e insumos</option>
+              <option>Arriendo o gastos del local</option>
+              <option>Servicios básicos</option>
+              <option>Transporte</option>
+              <option>Publicidad o redes sociales</option>
+              <option>Otros gastos</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label>Monto ($)</label>
+            <input type="number" id="g-monto" placeholder="0" min="0">
+          </div>
+          <div class="campo">
+            <label>Proveedor</label>
+            <input type="text" id="g-prov" placeholder="Ej: Distribuidora Papel">
+          </div>
+          <div class="campo">
+            <label>N° Boleta/Factura (opcional)</label>
+            <input type="text" id="g-boleta" placeholder="Ej: 001234">
+          </div>
+          <div class="campo form-full">
+            <label>Descripción (opcional)</label>
+            <input type="text" id="g-desc" placeholder="Ej: Resma papel bond 500 hojas">
+          </div>
+        </div>
+        <button class="btn-primario" onclick="agregarGasto()">Registrar gasto</button>
+        <div id="g-loading" style="display:none" class="loading"><div class="spinner"></div> Guardando...</div>
+      </div>
+
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-rosa">📋</div> Historial de gastos</div>
+        <div class="filtro-mes">
+          <label>Mes:</label>
+          <select id="gh-mes" onchange="renderGastos()"></select>
+        </div>
+        <div class="tabla-wrap" id="gastos-tabla"></div>
+      </div>
+    </div>
+
+    <!-- LIBRO DE CAJA -->
+    <div id="s-caja" class="seccion">
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-lavanda">📒</div> Libro de Caja</div>
+        <div class="filtro-mes">
+          <label>Mes:</label>
+          <select id="c-mes" onchange="renderCaja()"></select>
+        </div>
+        <div class="tabla-wrap" id="caja-tabla"></div>
+        <div class="nota">📌 El Libro de Caja registra todos los movimientos en orden cronológico con saldo acumulado (Debe/Haber), conforme a lo requerido por el SII.</div>
+      </div>
+    </div>
+
+    <!-- LIBRO DE VENTAS -->
+    <div id="s-libro-ventas" class="seccion">
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-verde">📗</div> Libro de Ventas</div>
+        <div class="filtro-mes">
+          <label>Mes:</label>
+          <select id="lv-mes" onchange="renderLibroVentas()"></select>
+        </div>
+        <div class="tabla-wrap" id="libro-ventas-tabla"></div>
+        <div class="nota">📌 El Libro de Ventas detalla todas las transacciones de ingresos del período. Cuando te formalices, incluirá número de boleta e IVA (19%).</div>
+      </div>
+    </div>
+
+    <!-- LIBRO DE COMPRAS -->
+    <div id="s-libro-compras" class="seccion">
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-rosa">📘</div> Libro de Compras</div>
+        <div class="filtro-mes">
+          <label>Mes:</label>
+          <select id="lc-mes" onchange="renderLibroCompras()"></select>
+        </div>
+        <div class="tabla-wrap" id="libro-compras-tabla"></div>
+        <div class="nota">📌 El Libro de Compras registra todos los gastos del período con proveedor y número de documento. Clave para el F29 cuando te formalices en el SII.</div>
+      </div>
+    </div>
+
+    <!-- BALANCE -->
+    <div id="s-balance" class="seccion">
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-lavanda">⚖️</div> Balance mensual</div>
+        <div class="filtro-mes">
+          <label>Mes:</label>
+          <select id="b-mes" onchange="renderBalance()"></select>
+        </div>
+        <div id="balance-contenido"></div>
+        <div class="btn-row">
+          <button class="btn-secundario" onclick="exportarCSV()">⬇ Exportar CSV</button>
+        </div>
+        <div class="nota">📌 Este balance sigue el esquema básico requerido por el SII para microempresarios. Cuando te formalices, tu contador lo complementará con IVA y declaraciones mensuales (F29).</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SHEET_ID = '1TMP9JPya9JN4L-u_1uSBV0T7lqbWOKY5Uuca3TIh6RA';
+const CLIENT_ID = '448516477103-cf61ostni03eqibauolptmb3e1ec3n8o.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MESES_KEY = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+
+let tokenClient, accessToken;
+let data = { ventas: [], gastos: [] };
+let cargando = false;
+
+// AUTH
+function iniciarSesion() {
+  google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: async (resp) => {
+      if (resp.error) return;
+      accessToken = resp.access_token;
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      await obtenerInfoUsuario();
+      await cargarDatos();
+      inicializarFechas();
+      poblarSelectores();
+      renderResumen();
+    }
+  }).requestAccessToken();
+}
+
+async function obtenerInfoUsuario() {
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    const u = await r.json();
+    const nombre = u.given_name || u.name || 'Usuario';
+    document.getElementById('nombre-usuario').textContent = nombre;
+    document.getElementById('avatar-inicial').textContent = nombre[0].toUpperCase();
+  } catch(e) {}
+}
+
+function cerrarSesion() {
+  google.accounts.oauth2.revoke(accessToken);
+  accessToken = null;
+  data = { ventas: [], gastos: [] };
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+// SHEETS API
+async function leerHoja(hoja) {
+  const r = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${hoja}`,
+    { headers: { Authorization: 'Bearer ' + accessToken } }
+  );
+  const d = await r.json();
+  return d.values || [];
+}
+
+async function agregarFila(hoja, fila) {
+  await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${hoja}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [fila] })
+    }
+  );
+}
+
+async function cargarDatos() {
+  mostrarToast('Cargando datos...');
+  try {
+    const ventas = await leerHoja('VENTAS');
+    const gastos = await leerHoja('GASTOS');
+    data.ventas = (ventas.slice(1) || []).map(r => ({
+      id: r[0], fecha: r[1], tipo: r[2], monto: parseFloat(r[3]) || 0, pago: r[4], desc: r[5] || ''
+    })).filter(v => v.fecha);
+    data.gastos = (gastos.slice(1) || []).map(r => ({
+      id: r[0], fecha: r[1], cat: r[2], monto: parseFloat(r[3]) || 0, prov: r[4] || '', boleta: r[5] || '', desc: r[6] || ''
+    })).filter(g => g.fecha);
+    data.ventas.sort((a,b) => b.fecha.localeCompare(a.fecha));
+    data.gastos.sort((a,b) => b.fecha.localeCompare(a.fecha));
+    mostrarToast('✓ Datos cargados');
+  } catch(e) {
+    mostrarToast('Error al cargar datos');
+  }
+}
+
+async function inicializarEncabezados() {
+  const vRows = await leerHoja('VENTAS');
+  if (!vRows.length) await agregarFila('VENTAS', ['ID','Fecha','Tipo','Monto','Pago','Descripción']);
+  const gRows = await leerHoja('GASTOS');
+  if (!gRows.length) await agregarFila('GASTOS', ['ID','Fecha','Categoría','Monto','Proveedor','N° Documento','Descripción']);
+}
+
+// UTILIDADES
+function pesos(n) { return '$' + Math.round(n).toLocaleString('es-CL'); }
+function formatFecha(f) { if(!f) return '—'; const [y,m,d] = f.split('-'); return `${d}/${m}/${y}`; }
+function mesActual() { const d = new Date(); return d.getFullYear() + '-' + MESES_KEY[d.getMonth()]; }
+function mesesDisponibles() {
+  const set = new Set([mesActual()]);
+  data.ventas.forEach(v => set.add(v.fecha.substring(0,7)));
+  data.gastos.forEach(g => set.add(g.fecha.substring(0,7)));
+  return Array.from(set).sort().reverse();
+}
+function filtrarMes(arr, mes) { return arr.filter(x => x.fecha && x.fecha.startsWith(mes)); }
+function inicializarFechas() {
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('v-fecha').value = hoy;
+  document.getElementById('g-fecha').value = hoy;
+}
+
+function poblarSelectores() {
+  const meses = mesesDisponibles();
+  ['r-mes','vh-mes','gh-mes','c-mes','lv-mes','lc-mes','b-mes'].forEach(id => {
+    const sel = document.getElementById(id);
+    const val = sel.value || mesActual();
+    sel.innerHTML = '';
+    meses.forEach(m => {
+      const [y,mo] = m.split('-');
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = MESES[parseInt(mo)-1] + ' ' + y;
+      if (m === val) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function mostrarToast(msg, dur = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function mostrarSeccion(id, btn) {
+  document.querySelectorAll('.seccion').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+  btn.classList.add('active');
+  poblarSelectores();
+  if (id === 'resumen') renderResumen();
+  if (id === 'ventas') renderVentas();
+  if (id === 'gastos') renderGastos();
+  if (id === 'caja') renderCaja();
+  if (id === 'libro-ventas') renderLibroVentas();
+  if (id === 'libro-compras') renderLibroCompras();
+  if (id === 'balance') renderBalance();
+}
+
+// AGREGAR VENTA
+async function agregarVenta() {
+  if (cargando) return;
+  const fecha = document.getElementById('v-fecha').value;
+  const tipo = document.getElementById('v-tipo').value;
+  const monto = parseFloat(document.getElementById('v-monto').value);
+  const pago = document.getElementById('v-pago').value;
+  const desc = document.getElementById('v-desc').value;
+  if (!fecha || isNaN(monto) || monto <= 0) { mostrarToast('⚠️ Completa fecha y monto'); return; }
+  cargando = true;
+  document.getElementById('v-loading').style.display = 'flex';
+  const id = Date.now().toString();
+  try {
+    await inicializarEncabezados();
+    await agregarFila('VENTAS', [id, fecha, tipo, monto, pago, desc]);
+    data.ventas.unshift({ id, fecha, tipo, monto, pago, desc });
+    data.ventas.sort((a,b) => b.fecha.localeCompare(a.fecha));
+    document.getElementById('v-monto').value = '';
+    document.getElementById('v-desc').value = '';
+    poblarSelectores();
+    renderVentas();
+    renderResumen();
+    mostrarToast('✓ Venta registrada');
+  } catch(e) { mostrarToast('Error al guardar'); }
+  document.getElementById('v-loading').style.display = 'none';
+  cargando = false;
+}
+
+// AGREGAR GASTO
+async function agregarGasto() {
+  if (cargando) return;
+  const fecha = document.getElementById('g-fecha').value;
+  const cat = document.getElementById('g-cat').value;
+  const monto = parseFloat(document.getElementById('g-monto').value);
+  const prov = document.getElementById('g-prov').value;
+  const boleta = document.getElementById('g-boleta').value;
+  const desc = document.getElementById('g-desc').value;
+  if (!fecha || isNaN(monto) || monto <= 0) { mostrarToast('⚠️ Completa fecha y monto'); return; }
+  cargando = true;
+  document.getElementById('g-loading').style.display = 'flex';
+  const id = Date.now().toString();
+  try {
+    await inicializarEncabezados();
+    await agregarFila('GASTOS', [id, fecha, cat, monto, prov, boleta, desc]);
+    data.gastos.unshift({ id, fecha, cat, monto, prov, boleta, desc });
+    data.gastos.sort((a,b) => b.fecha.localeCompare(a.fecha));
+    document.getElementById('g-monto').value = '';
+    document.getElementById('g-prov').value = '';
+    document.getElementById('g-boleta').value = '';
+    document.getElementById('g-desc').value = '';
+    poblarSelectores();
+    renderGastos();
+    renderResumen();
+    mostrarToast('✓ Gasto registrado');
+  } catch(e) { mostrarToast('Error al guardar'); }
+  document.getElementById('g-loading').style.display = 'none';
+  cargando = false;
+}
+
+// RENDERS
+function renderResumen() {
+  const mes = document.getElementById('r-mes').value;
+  const vs = filtrarMes(data.ventas, mes);
+  const gs = filtrarMes(data.gastos, mes);
+  const totalV = vs.reduce((s,v) => s+v.monto, 0);
+  const totalG = gs.reduce((s,g) => s+g.monto, 0);
+  const utilidad = totalV - totalG;
+  document.getElementById('r-metricas').innerHTML = `
+    <div class="metrica"><div class="metrica-label">Ingresos (Haber)</div><div class="metrica-valor verde">${pesos(totalV)}</div></div>
+    <div class="metrica"><div class="metrica-label">Egresos (Debe)</div><div class="metrica-valor rosa">${pesos(totalG)}</div></div>
+    <div class="metrica"><div class="metrica-label">Resultado</div><div class="metrica-valor ${utilidad>=0?'verde':'rosa'}">${pesos(utilidad)}</div></div>
+    <div class="metrica"><div class="metrica-label">N° operaciones</div><div class="metrica-valor lavanda">${vs.length + gs.length}</div></div>
+  `;
+  const last5V = vs.slice(0,5);
+  document.getElementById('r-ultimas-ventas').innerHTML = last5V.length
+    ? `<table><tbody>${last5V.map(v=>`<tr><td>${formatFecha(v.fecha)}</td><td>${v.tipo}</td><td style="text-align:right;font-weight:600;color:var(--verde-texto)">${pesos(v.monto)}</td></tr>`).join('')}</tbody></table>`
+    : `<div class="vacio"><div class="vacio-icono">💰</div>Sin ventas este mes</div>`;
+  const last5G = gs.slice(0,5);
+  document.getElementById('r-ultimos-gastos').innerHTML = last5G.length
+    ? `<table><tbody>${last5G.map(g=>`<tr><td>${formatFecha(g.fecha)}</td><td>${g.cat}</td><td style="text-align:right;font-weight:600;color:var(--rosa-texto)">${pesos(g.monto)}</td></tr>`).join('')}</tbody></table>`
+    : `<div class="vacio"><div class="vacio-icono">🧾</div>Sin gastos este mes</div>`;
+}
+
+function renderVentas() {
+  const mes = document.getElementById('vh-mes').value;
+  const vs = filtrarMes(data.ventas, mes);
+  const total = vs.reduce((s,v) => s+v.monto, 0);
+  if (!vs.length) { document.getElementById('ventas-tabla').innerHTML = `<div class="vacio"><div class="vacio-icono">💰</div>Sin ventas este mes</div>`; return; }
+  document.getElementById('ventas-tabla').innerHTML = `<table>
+    <thead><tr><th>Fecha</th><th>Tipo de servicio</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th></tr></thead>
+    <tbody>${vs.map(v=>`<tr><td>${formatFecha(v.fecha)}</td><td>${v.tipo}</td><td style="color:var(--gris-texto)">${v.desc||'—'}</td><td><span class="badge ${v.pago==='Efectivo'?'badge-amarillo':'badge-lavanda'}">${v.pago}</span></td><td style="text-align:right;font-weight:600;color:var(--verde-texto)">${pesos(v.monto)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4" style="padding:10px">Total del mes</td><td style="text-align:right;padding:10px;color:var(--verde-texto)">${pesos(total)}</td></tr></tfoot>
+  </table>`;
+}
+
+function renderGastos() {
+  const mes = document.getElementById('gh-mes').value;
+  const gs = filtrarMes(data.gastos, mes);
+  const total = gs.reduce((s,g) => s+g.monto, 0);
+  if (!gs.length) { document.getElementById('gastos-tabla').innerHTML = `<div class="vacio"><div class="vacio-icono">🧾</div>Sin gastos este mes</div>`; return; }
+  document.getElementById('gastos-tabla').innerHTML = `<table>
+    <thead><tr><th>Fecha</th><th>Categoría</th><th>Proveedor</th><th>N° Doc.</th><th style="text-align:right">Monto</th></tr></thead>
+    <tbody>${gs.map(g=>`<tr><td>${formatFecha(g.fecha)}</td><td>${g.cat}</td><td style="color:var(--gris-texto)">${g.prov||'—'}</td><td style="color:var(--gris-texto)">${g.boleta||'—'}</td><td style="text-align:right;font-weight:600;color:var(--rosa-texto)">${pesos(g.monto)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4" style="padding:10px">Total del mes</td><td style="text-align:right;padding:10px;color:var(--rosa-texto)">${pesos(total)}</td></tr></tfoot>
+  </table>`;
+}
+
+function renderCaja() {
+  const mes = document.getElementById('c-mes').value;
+  const vs = filtrarMes(data.ventas, mes).map(v=>({fecha:v.fecha,concepto:v.tipo+(v.desc?' — '+v.desc:''),tipo:'Haber',monto:v.monto}));
+  const gs = filtrarMes(data.gastos, mes).map(g=>({fecha:g.fecha,concepto:g.cat+(g.desc?' — '+g.desc:''),tipo:'Debe',monto:g.monto}));
+  const movs = [...vs,...gs].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  if (!movs.length) { document.getElementById('caja-tabla').innerHTML = `<div class="vacio"><div class="vacio-icono">📒</div>Sin movimientos este mes</div>`; return; }
+  let saldo = 0;
+  const rows = movs.map((m,i) => {
+    saldo += m.tipo==='Haber' ? m.monto : -m.monto;
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${formatFecha(m.fecha)}</td>
+      <td>${m.concepto}</td>
+      <td style="text-align:right;color:var(--verde-texto)">${m.tipo==='Haber'?pesos(m.monto):'—'}</td>
+      <td style="text-align:right;color:var(--rosa-texto)">${m.tipo==='Debe'?pesos(m.monto):'—'}</td>
+      <td style="text-align:right;font-weight:600;color:var(--${saldo>=0?'verde':'rosa'}-texto)">${pesos(saldo)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('caja-tabla').innerHTML = `<table>
+    <thead><tr><th>#</th><th>Fecha</th><th>Concepto</th><th style="text-align:right">Haber (Ingreso)</th><th style="text-align:right">Debe (Egreso)</th><th style="text-align:right">Saldo</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderLibroVentas() {
+  const mes = document.getElementById('lv-mes').value;
+  const vs = filtrarMes(data.ventas, mes);
+  const total = vs.reduce((s,v) => s+v.monto, 0);
+  if (!vs.length) { document.getElementById('libro-ventas-tabla').innerHTML = `<div class="vacio"><div class="vacio-icono">📗</div>Sin ventas este mes</div>`; return; }
+  document.getElementById('libro-ventas-tabla').innerHTML = `<table>
+    <thead><tr><th>#</th><th>Fecha</th><th>Concepto</th><th>Medio de pago</th><th style="text-align:right">Monto neto</th></tr></thead>
+    <tbody>${vs.map((v,i)=>`<tr><td>${i+1}</td><td>${formatFecha(v.fecha)}</td><td>${v.tipo}${v.desc?' — '+v.desc:''}</td><td><span class="badge ${v.pago==='Efectivo'?'badge-amarillo':'badge-lavanda'}">${v.pago}</span></td><td style="text-align:right;font-weight:600;color:var(--verde-texto)">${pesos(v.monto)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4" style="padding:10px">Total período</td><td style="text-align:right;padding:10px;color:var(--verde-texto)">${pesos(total)}</td></tr></tfoot>
+  </table>`;
+}
+
+function renderLibroCompras() {
+  const mes = document.getElementById('lc-mes').value;
+  const gs = filtrarMes(data.gastos, mes);
+  const total = gs.reduce((s,g) => s+g.monto, 0);
+  if (!gs.length) { document.getElementById('libro-compras-tabla').innerHTML = `<div class="vacio"><div class="vacio-icono">📘</div>Sin compras este mes</div>`; return; }
+  document.getElementById('libro-compras-tabla').innerHTML = `<table>
+    <thead><tr><th>#</th><th>Fecha</th><th>Proveedor</th><th>N° Documento</th><th>Categoría</th><th style="text-align:right">Monto</th></tr></thead>
+    <tbody>${gs.map((g,i)=>`<tr><td>${i+1}</td><td>${formatFecha(g.fecha)}</td><td>${g.prov||'—'}</td><td>${g.boleta||'—'}</td><td>${g.cat}</td><td style="text-align:right;font-weight:600;color:var(--rosa-texto)">${pesos(g.monto)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="5" style="padding:10px">Total período</td><td style="text-align:right;padding:10px;color:var(--rosa-texto)">${pesos(total)}</td></tr></tfoot>
+  </table>`;
+}
+
+function renderBalance() {
+  const mes = document.getElementById('b-mes').value;
+  const [y,mo] = mes.split('-');
+  const mesNombre = MESES[parseInt(mo)-1] + ' ' + y;
+  const vs = filtrarMes(data.ventas, mes);
+  const gs = filtrarMes(data.gastos, mes);
+  const totalV = vs.reduce((s,v) => s+v.monto, 0);
+  const totalG = gs.reduce((s,g) => s+g.monto, 0);
+  const utilidad = totalV - totalG;
+  const catG = {};
+  gs.forEach(g => { catG[g.cat] = (catG[g.cat]||0) + g.monto; });
+  const tipoV = {};
+  vs.forEach(v => { tipoV[v.tipo] = (tipoV[v.tipo]||0) + v.monto; });
+  const filasV = Object.entries(tipoV).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="balance-fila"><span style="color:var(--gris-texto)">${k}</span><span style="color:var(--verde-texto)">${pesos(v)}</span></div>`).join('');
+  const filasG = Object.entries(catG).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="balance-fila"><span style="color:var(--gris-texto)">${k}</span><span style="color:var(--rosa-texto)">${pesos(v)}</span></div>`).join('');
+  document.getElementById('balance-contenido').innerHTML = `
+    <div style="font-size:13px;color:var(--gris-texto);margin-bottom:1.5rem">Período: <strong>${mesNombre}</strong></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
+      <div class="balance-seccion">
+        <div class="balance-seccion-titulo">Ingresos (Haber)</div>
+        ${filasV || '<div style="color:var(--gris-texto);font-size:13px">Sin ingresos</div>'}
+        <div class="balance-fila total"><span>Total ingresos</span><span style="color:var(--verde-texto)">${pesos(totalV)}</span></div>
+      </div>
+      <div class="balance-seccion">
+        <div class="balance-seccion-titulo">Egresos (Debe)</div>
+        ${filasG || '<div style="color:var(--gris-texto);font-size:13px">Sin egresos</div>'}
+        <div class="balance-fila total"><span>Total egresos</span><span style="color:var(--rosa-texto)">${pesos(totalG)}</span></div>
+      </div>
+    </div>
+    <div style="background:var(--${utilidad>=0?'verde':'rosa'}-claro);border:1px solid var(--${utilidad>=0?'verde':'rosa'});border-radius:var(--radio);padding:1rem 1.25rem">
+      <div style="font-size:12px;color:var(--${utilidad>=0?'verde':'rosa'}-texto);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Resultado del período</div>
+      <div style="font-size:28px;font-weight:700;color:var(--${utilidad>=0?'verde':'rosa'}-texto)">${pesos(utilidad)}</div>
+      <div style="font-size:12px;color:var(--${utilidad>=0?'verde':'rosa'}-texto);margin-top:4px">${utilidad>=0?'Utilidad neta':'Pérdida neta'} — ${mesNombre}</div>
+    </div>
+  `;
+}
+
+function exportarCSV() {
+  const mes = document.getElementById('b-mes').value;
+  const [y,mo] = mes.split('-');
+  const vs = filtrarMes(data.ventas, mes);
+  const gs = filtrarMes(data.gastos, mes);
+  let csv = 'Tipo,Fecha,Concepto,Categoría,Proveedor,N° Documento,Monto,Medio de Pago\n';
+  vs.forEach(v => { csv += `Ingreso,${v.fecha},"${v.tipo}","","","",${v.monto},"${v.pago}"\n`; });
+  gs.forEach(g => { csv += `Egreso,${g.fecha},"${g.cat}","${g.cat}","${g.prov||''}","${g.boleta||''}",${g.monto},""\n`; });
+  const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Shiori_${MESES[parseInt(mo)-1]}_${y}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  mostrarToast('✓ CSV exportado');
+}
+</script>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
