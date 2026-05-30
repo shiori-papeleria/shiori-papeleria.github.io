@@ -481,11 +481,13 @@ async function cargarDatos() {
   try {
     const ventas = await leerHoja('VENTAS');
     const gastos = await leerHoja('GASTOS');
-    const todasVentas = (ventas.slice(1) || []).map(r => ({
+    data.ventas = (ventas.slice(1) || []).map(r => ({
       id: r[0], fecha: r[1], tipo: r[2], monto: parseFloat(r[3]) || 0, pago: r[4], desc: r[5] || ''
     })).filter(v => v.fecha);
-    data.ventas = todasVentas.filter(v => v.tipo !== 'Aporte de socios');
-    data.aportes = todasVentas.filter(v => v.tipo === 'Aporte de socios');
+    const aportesRaw = await leerHoja('APORTES');
+    data.aportes = (aportesRaw.slice(1) || []).map(r => ({
+      id: r[0], fecha: r[1], tipo: 'Aporte de socios', desc: r[3] || '', pago: r[4] || '', monto: parseFloat(r[5]) || 0
+    })).filter(a => a.fecha);
     data.gastos = (gastos.slice(1) || []).map(r => ({
       id: r[0], fecha: r[1], cat: r[2], monto: parseFloat(r[3]) || 0, prov: r[4] || '', boleta: r[5] || '', desc: r[6] || ''
     })).filter(g => g.fecha);
@@ -562,7 +564,7 @@ async function sincronizarHojas() {
     await limpiarHoja('BALANCE');
     await escribirHoja('BALANCE', filasB);
 
-    // APORTES
+    // APORTES — escribe desde data.aportes (leído desde hoja APORTES)
     const filasAp = [['#','Fecha','Concepto','Descripción','Medio de pago','Monto']];
     aportesOrden.forEach((v,i) => filasAp.push([i+1, v.fecha, 'Aporte de socios', v.desc||'', v.pago||'', v.monto]));
     const totalAp = aportesOrden.reduce((s,v) => s+v.monto, 0);
