@@ -196,6 +196,7 @@
     <button class="nav-btn" onclick="mostrarSeccion('libro-ventas', this)">📗 Libro de Ventas</button>
     <button class="nav-btn" onclick="mostrarSeccion('libro-compras', this)">📘 Libro de Compras</button>
     <button class="nav-btn" onclick="mostrarSeccion('balance', this)">⚖️ Balance</button>
+    <button class="nav-btn" onclick="mostrarSeccion('activos', this)">🏭 Activos</button>
   </nav>
 
   <div class="contenido">
@@ -380,6 +381,25 @@
       </div>
     </div>
 
+    <!-- ACTIVOS -->
+    <div id="s-activos" class="seccion">
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-lavanda">🏭</div> Activos fijos</div>
+        <div class="tabla-wrap" id="activos-tabla"></div>
+        <div class="nota">📌 Los activos fijos son bienes que la empresa posee y usa para operar. Se registran a su valor de compra.</div>
+      </div>
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-rosa">💳</div> Pasivos — Deudas de la empresa</div>
+        <div class="tabla-wrap" id="pasivos-tabla"></div>
+        <div class="nota">📌 Los aportes de socios son deudas de la empresa con sus dueños. La empresa debe devolver este dinero cuando tenga utilidades suficientes.</div>
+      </div>
+      <div class="tarjeta">
+        <div class="tarjeta-titulo"><div class="icono icono-verde">📊</div> Estado de situación</div>
+        <div id="situacion-contenido"></div>
+        <div class="nota">📌 El Estado de Situación muestra la posición financiera de Shiori: lo que tiene (activos) vs lo que debe (pasivos). La diferencia es el patrimonio neto.</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -536,6 +556,7 @@ function mostrarSeccion(id, btn) {
   if (id === 'libro-ventas') renderLibroVentas();
   if (id === 'libro-compras') renderLibroCompras();
   if (id === 'balance') renderBalance();
+  if (id === 'activos') renderActivos();
 }
 
 // AGREGAR VENTA
@@ -726,6 +747,45 @@ function renderBalance() {
       <div style="font-size:12px;color:var(--${utilidad>=0?'verde':'rosa'}-texto);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Resultado del período</div>
       <div style="font-size:28px;font-weight:700;color:var(--${utilidad>=0?'verde':'rosa'}-texto)">${pesos(utilidad)}</div>
       <div style="font-size:12px;color:var(--${utilidad>=0?'verde':'rosa'}-texto);margin-top:4px">${utilidad>=0?'Utilidad neta':'Pérdida neta'} — ${mesNombre}</div>
+    </div>
+  `;
+}
+
+function renderActivos() {
+  const activos = data.gastos.filter(g => g.cat === 'Activo fijo (equipos)');
+  const pasivos = data.gastos.filter(g => g.cat === 'Aporte de socios');
+  const totalActivos = activos.reduce((s,g) => s+g.monto, 0);
+  const totalPasivos = pasivos.reduce((s,g) => s+g.monto, 0);
+  const totalVentas = data.ventas.reduce((s,v) => s+v.monto, 0);
+  const totalGastosOp = data.gastos.filter(g => g.cat !== 'Activo fijo (equipos)' && g.cat !== 'Aporte de socios').reduce((s,g) => s+g.monto, 0);
+  const utilidad = totalVentas - totalGastosOp;
+  const patrimonio = totalActivos - totalPasivos + utilidad;
+
+  document.getElementById('activos-tabla').innerHTML = activos.length ? `<table>
+    <thead><tr><th>#</th><th>Fecha adquisición</th><th>Activo</th><th>Descripción</th><th style="text-align:right">Valor</th></tr></thead>
+    <tbody>${activos.map((g,i) => `<tr><td>${i+1}</td><td>${formatFecha(g.fecha)}</td><td style="font-weight:500">${g.desc||g.cat}</td><td style="color:var(--gris-texto)">${g.prov||'—'}</td><td style="text-align:right;font-weight:600;color:var(--lavanda-texto)">${pesos(g.monto)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4" style="padding:10px;font-weight:600">Total activos fijos</td><td style="text-align:right;padding:10px;font-weight:600;color:var(--lavanda-texto)">${pesos(totalActivos)}</td></tr></tfoot>
+  </table>` : `<div class="vacio"><div class="vacio-icono">🏭</div>Sin activos registrados</div>`;
+
+  document.getElementById('pasivos-tabla').innerHTML = pasivos.length ? `<table>
+    <thead><tr><th>#</th><th>Fecha</th><th>Concepto</th><th>Descripción</th><th style="text-align:right">Monto</th></tr></thead>
+    <tbody>${pasivos.map((g,i) => `<tr><td>${i+1}</td><td>${formatFecha(g.fecha)}</td><td style="font-weight:500">Aporte de socios</td><td style="color:var(--gris-texto)">${g.desc||'—'}</td><td style="text-align:right;font-weight:600;color:var(--rosa-texto)">${pesos(g.monto)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4" style="padding:10px;font-weight:600">Total pasivos</td><td style="text-align:right;padding:10px;font-weight:600;color:var(--rosa-texto)">${pesos(totalPasivos)}</td></tr></tfoot>
+  </table>` : `<div class="vacio"><div class="vacio-icono">💳</div>Sin pasivos registrados</div>`;
+
+  document.getElementById('situacion-contenido').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
+      <div>
+        <div class="balance-seccion-titulo">Activos</div>
+        <div class="balance-fila"><span style="color:var(--gris-texto)">Activos fijos</span><span style="color:var(--lavanda-texto)">${pesos(totalActivos)}</span></div>
+        <div class="balance-fila total"><span>Total activos</span><span style="color:var(--lavanda-texto)">${pesos(totalActivos)}</span></div>
+      </div>
+      <div>
+        <div class="balance-seccion-titulo">Pasivos y patrimonio</div>
+        <div class="balance-fila"><span style="color:var(--gris-texto)">Aporte de socios</span><span style="color:var(--rosa-texto)">${pesos(totalPasivos)}</span></div>
+        <div class="balance-fila"><span style="color:var(--gris-texto)">Resultado acumulado</span><span style="color:${utilidad>=0?'var(--verde-texto)':'var(--rosa-texto)'}">${pesos(utilidad)}</span></div>
+        <div class="balance-fila total"><span>Patrimonio neto</span><span style="color:${patrimonio>=0?'var(--verde-texto)':'var(--rosa-texto)'}">${pesos(patrimonio)}</span></div>
+      </div>
     </div>
   `;
 }
