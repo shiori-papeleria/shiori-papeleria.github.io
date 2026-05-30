@@ -291,7 +291,7 @@
               <option>Servicios básicos</option>
               <option>Transporte</option>
               <option>Publicidad o redes sociales</option>
-              <option>Aporte de socios</option>
+              <option>Pasivo — Aporte de socios</option>
               <option>Otros gastos</option>
             </select>
           </div>
@@ -536,7 +536,7 @@ async function sincronizarHojas() {
     await escribirHoja('LIBRO_VENTAS', filasLV);
 
     // LIBRO_COMPRAS — solo gastos operacionales (sin activos fijos ni aportes)
-    const gastosCompras = gastosOrden.filter(g => g.cat !== 'Aporte de socios' && g.cat !== 'Activo fijo (equipos)');
+    const gastosCompras = gastosOrden.filter(g => g.cat !== 'Aporte de socios' && g.cat !== 'Pasivo — Aporte de socios' && g.cat !== 'Activo fijo (equipos)');
     const filasLC = [['#','Fecha','Categoría','Proveedor','N° Documento','Descripción','Monto']];
     gastosCompras.forEach((g,i) => filasLC.push([i+1, g.fecha, g.cat, g.prov||'', g.boleta||'', g.desc||'', g.monto]));
     const totalG = gastosCompras.reduce((s,g) => s+g.monto, 0);
@@ -552,14 +552,14 @@ async function sincronizarHojas() {
     const filasB = [['Mes','Ingresos (Haber)','Egresos (Debe)','Resultado']];
     mesesList.forEach(mes => {
       const vs = data.ventas.filter(v => v.fecha.startsWith(mes)); // ya excluye aportes
-      const gs = data.gastos.filter(g => g.fecha.startsWith(mes) && g.cat !== 'Aporte de socios' && g.cat !== 'Activo fijo (equipos)');
+      const gs = data.gastos.filter(g => g.fecha.startsWith(mes) && g.cat !== 'Aporte de socios' && g.cat !== 'Pasivo — Aporte de socios' && g.cat !== 'Activo fijo (equipos)');
       const tv = vs.reduce((s,v) => s+v.monto, 0);
       const tg = gs.reduce((s,g) => s+g.monto, 0);
       const [y,mo] = mes.split('-');
       filasB.push([MESES[parseInt(mo)-1]+' '+y, tv, tg, tv-tg]);
     });
     const totalVB = data.ventas.reduce((s,v) => s+v.monto, 0); // ya excluye aportes
-    const totalGB = data.gastos.filter(g => g.cat !== 'Aporte de socios' && g.cat !== 'Activo fijo (equipos)').reduce((s,g) => s+g.monto, 0);
+    const totalGB = data.gastos.filter(g => g.cat !== 'Aporte de socios' && g.cat !== 'Pasivo — Aporte de socios' && g.cat !== 'Activo fijo (equipos)').reduce((s,g) => s+g.monto, 0);
     filasB.push(['TOTAL ACUMULADO', totalVB, totalGB, totalVB-totalGB]);
     await limpiarHoja('BALANCE');
     await escribirHoja('BALANCE', filasB);
@@ -848,11 +848,11 @@ function renderBalance() {
 
 function renderActivos() {
   const activos = data.gastos.filter(g => g.cat === 'Activo fijo (equipos)');
-  const pasivos = data.gastos.filter(g => g.cat === 'Aporte de socios');
+  const pasivos = data.gastos.filter(g => g.cat === 'Aporte de socios' || g.cat === 'Pasivo — Aporte de socios');
   const totalActivos = activos.reduce((s,g) => s+g.monto, 0);
   const totalPasivos = pasivos.reduce((s,g) => s+g.monto, 0);
   const totalVentas = data.ventas.reduce((s,v) => s+v.monto, 0);
-  const totalGastosOp = data.gastos.filter(g => g.cat !== 'Activo fijo (equipos)' && g.cat !== 'Aporte de socios').reduce((s,g) => s+g.monto, 0);
+  const totalGastosOp = data.gastos.filter(g => g.cat !== 'Activo fijo (equipos)' && g.cat !== 'Aporte de socios' && g.cat !== 'Pasivo — Aporte de socios').reduce((s,g) => s+g.monto, 0);
   const utilidad = totalVentas - totalGastosOp;
   const patrimonio = totalActivos - totalPasivos + utilidad;
 
