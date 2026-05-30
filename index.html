@@ -848,7 +848,7 @@ function renderBalance() {
 
 function renderActivos() {
   const activos = data.gastos.filter(g => g.cat === 'Activo fijo (equipos)');
-  const pasivos = data.gastos.filter(g => g.cat === 'Aporte de socios' || g.cat === 'Pasivo — Aporte de socios');
+  const pasivos = data.aportes;
   const totalActivos = activos.reduce((s,g) => s+g.monto, 0);
   const totalPasivos = pasivos.reduce((s,g) => s+g.monto, 0);
   const totalVentas = data.ventas.reduce((s,v) => s+v.monto, 0);
