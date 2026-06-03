@@ -496,17 +496,19 @@ async function cargarDatos() {
 }
 
 async function limpiarHoja(hoja) {
-  await fetch(
+  const r = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${hoja}:clear`,
     {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' }
     }
   );
+  if (!r.ok) console.error('Error limpiando', hoja, r.status, await r.text());
+  else console.log('✓ Limpiado:', hoja);
 }
 
 async function escribirHoja(hoja, filas) {
-  await fetch(
+  const r = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${hoja}?valueInputOption=RAW`,
     {
       method: 'PUT',
@@ -514,6 +516,8 @@ async function escribirHoja(hoja, filas) {
       body: JSON.stringify({ values: filas })
     }
   );
+  if (!r.ok) console.error('Error escribiendo', hoja, r.status, await r.text());
+  else console.log('✓ Escrito:', hoja, filas.length, 'filas');
 }
 
 async function sincronizarHojas() {
