@@ -427,7 +427,7 @@ function iniciarSesion() {
       accessToken = resp.access_token;
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app').style.display = 'block';
-      await obtenerInfoUsuario();
+      obtenerInfoUsuario().catch(e => console.log('Info usuario no disponible'));
       await cargarDatos();
       inicializarFechas();
       poblarSelectores();
@@ -523,6 +523,7 @@ async function escribirHoja(hoja, filas) {
 }
 
 async function sincronizarHojas() {
+  if (!accessToken) { console.log('Sin token, saltando sincronización'); return; }
   try {
     const ventasOrden = [...data.ventas].sort((a,b) => a.fecha.localeCompare(b.fecha));
     const gastosOrden = [...data.gastos].sort((a,b) => a.fecha.localeCompare(b.fecha));
