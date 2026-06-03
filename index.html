@@ -240,6 +240,7 @@
               <option>Anillado</option>
               <option>Plastificado</option>
               <option>Stickers</option>
+              <option>Souvenirs</option>
               <option>Otro</option>
             </select>
           </div>
@@ -662,11 +663,11 @@ async function agregarVenta() {
   if (!fecha || isNaN(monto) || monto <= 0) { mostrarToast('⚠️ Completa fecha y monto'); return; }
   cargando = true;
   document.getElementById('v-loading').style.display = 'flex';
-  const id = Date.now().toString();
+  const idVenta = data.ventas.length + data.aportes.length + 1;
   try {
     await inicializarEncabezados();
-    await agregarFila('VENTAS', [id, fecha, tipo, monto, pago, desc]);
-    data.ventas.unshift({ id, fecha, tipo, monto, pago, desc });
+    await agregarFila('VENTAS', [idVenta, fecha, tipo, monto, pago, desc]);
+    data.ventas.unshift({ id: idVenta, fecha, tipo, monto, pago, desc });
     data.ventas.sort((a,b) => b.fecha.localeCompare(a.fecha));
     document.getElementById('v-monto').value = '';
     document.getElementById('v-desc').value = '';
@@ -692,11 +693,11 @@ async function agregarGasto() {
   if (!fecha || isNaN(monto) || monto <= 0) { mostrarToast('⚠️ Completa fecha y monto'); return; }
   cargando = true;
   document.getElementById('g-loading').style.display = 'flex';
-  const id = Date.now().toString();
+  const idGasto = data.gastos.length + 1;
   try {
     await inicializarEncabezados();
-    await agregarFila('GASTOS', [id, fecha, cat, monto, prov, boleta, desc]);
-    data.gastos.unshift({ id, fecha, cat, monto, prov, boleta, desc });
+    await agregarFila('GASTOS', [idGasto, fecha, cat, monto, prov, boleta, desc]);
+    data.gastos.unshift({ id: idGasto, fecha, cat, monto, prov, boleta, desc });
     data.gastos.sort((a,b) => b.fecha.localeCompare(a.fecha));
     document.getElementById('g-monto').value = '';
     document.getElementById('g-prov').value = '';
