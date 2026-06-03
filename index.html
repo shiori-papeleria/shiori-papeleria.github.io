@@ -572,6 +572,21 @@ async function sincronizarHojas() {
     await limpiarHoja('APORTES');
     await escribirHoja('APORTES', filasAp);
 
+    // LIBRO_CAJA — todos los movimientos de dinero en orden cronológico
+    const movsCompletos = [
+      ...aportesOrden.map(v => ({fecha:v.fecha, concepto:'Aporte de socios — '+(v.desc||''), haber:v.monto, debe:0})),
+      ...ventasOrden.map(v => ({fecha:v.fecha, concepto:v.tipo+(v.desc?' — '+v.desc:''), haber:v.monto, debe:0})),
+      ...gastosOrden.map(g => ({fecha:g.fecha, concepto:g.cat+(g.desc?' — '+g.desc:''), haber:0, debe:g.monto}))
+    ].sort((a,b) => a.fecha.localeCompare(b.fecha));
+    const filasLCAja = [['#','Fecha','Concepto','Haber (Ingreso)','Debe (Egreso)','Saldo']];
+    let saldoCaja = 0;
+    movsCompletos.forEach((m,i) => {
+      saldoCaja += m.haber - m.debe;
+      filasLCAja.push([i+1, m.fecha, m.concepto, m.haber||'', m.debe||'', saldoCaja]);
+    });
+    await limpiarHoja('LIBRO_CAJA');
+    await escribirHoja('LIBRO_CAJA', filasLCAja);
+
     // ACTIVOS_FIJOS
     const activosOrden = [...data.gastos].filter(g => g.cat === 'Activo fijo (equipos)').sort((a,b) => a.fecha.localeCompare(b.fecha));
     const filasAF = [['#','Fecha adquisición','Descripción','Proveedor','N° Documento','Valor de compra']];
