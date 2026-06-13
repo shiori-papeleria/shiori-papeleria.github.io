@@ -50,6 +50,7 @@
   .header-logo { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .header-logo span { font-size: 22px; }
   .header-usuario { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--gris-texto); }
+  .header-centro { display: flex; align-items: center; gap: 4px; }
   .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--lavanda); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--lavanda-texto); }
   .btn-salir { background: none; border: 1px solid var(--gris-borde); border-radius: var(--radio-sm); padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--gris-texto); }
   .btn-salir:hover { background: var(--gris); }
@@ -181,9 +182,14 @@
 <div id="app">
   <div class="header">
     <div class="header-logo"><span>📋</span> Shiori</div>
+    <div class="header-centro" id="header-saldo" style="font-size:13px;color:var(--texto-suave);display:none">
+      <span style="color:var(--gris-texto)">Caja disponible:</span>
+      <span id="saldo-header" style="font-weight:600;color:var(--verde-texto);margin-left:4px">$0</span>
+    </div>
     <div class="header-usuario">
       <div class="avatar" id="avatar-inicial">S</div>
-      <span id="nombre-usuario"></span>
+      <span id="nombre-usuario" style="font-size:13px;color:var(--gris-texto)"></span>
+      <button class="btn-secundario" onclick="actualizarDatos()" style="padding:4px 10px;font-size:12px" title="Sincronizar ahora">↻</button>
       <button class="btn-salir" onclick="cerrarSesion()">Salir</button>
     </div>
   </div>
@@ -413,18 +419,20 @@ const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const MESES_KEY = ['01','02','03','04','05','06','07','08','09','10','11','12'];
 
-let tokenClient, accessToken;
+let tokenClient, accessToken, autoRefreshInterval;
 let data = { ventas: [], gastos: [], aportes: [] };
 let cargando = false;
 
 // AUTH
-function iniciarSesion() {
+function iniciarSesion(prompt = 'select_account') {
   google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
+    prompt: prompt,
     callback: async (resp) => {
       if (resp.error) return;
       accessToken = resp.access_token;
+      sessionStorage.setItem('shiori_token', accessToken);
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app').style.display = 'block';
       obtenerInfoUsuario().catch(e => console.log('Info usuario no disponible'));
@@ -432,12 +440,42 @@ function iniciarSesion() {
       inicializarFechas();
       poblarSelectores();
       renderResumen();
+      iniciarAutoRefresh();
     }
   }).requestAccessToken();
 }
 
+function iniciarAutoRefresh() {
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  autoRefreshInterval = setInterval(async () => {
+    if (accessToken) {
+      await cargarDatos();
+      poblarSelectores();
+      const seccionActiva = document.querySelector('.seccion.active');
+      if (seccionActiva) {
+        const id = seccionActiva.id.replace('s-', '');
+        if (id === 'resumen') renderResumen();
+        if (id === 'ventas') renderVentas();
+        if (id === 'gastos') renderGastos();
+        if (id === 'caja') renderCaja();
+        if (id === 'libro-ventas') renderLibroVentas();
+        if (id === 'libro-compras') renderLibroCompras();
+        if (id === 'balance') renderBalance();
+        if (id === 'activos') renderActivos();
+      }
+    }
+  }, 30000);
+}
+
+async function actualizarDatos() {
+  mostrarToast('Actualizando...');
+  await cargarDatos();
+  poblarSelectores();
+  renderResumen();
+  mostrarToast('✓ Actualizado');
+}
+
 async function obtenerInfoUsuario() {
-  // Simplificado para evitar errores de autorización
   document.getElementById('nombre-usuario').textContent = 'Shiori';
   document.getElementById('avatar-inicial').textContent = 'S';
 }
@@ -445,9 +483,12 @@ async function obtenerInfoUsuario() {
 function cerrarSesion() {
   google.accounts.oauth2.revoke(accessToken);
   accessToken = null;
+  sessionStorage.removeItem('shiori_token');
   data = { ventas: [], gastos: [], aportes: [] };
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
+  document.getElementById('header-saldo').style.display = 'none';
 }
 
 // SHEETS API
@@ -489,10 +530,42 @@ async function cargarDatos() {
     data.ventas.sort((a,b) => b.fecha.localeCompare(a.fecha));
     data.gastos.sort((a,b) => b.fecha.localeCompare(a.fecha));
     mostrarToast('✓ Datos cargados');
+    actualizarSaldoHeader();
     await sincronizarHojas();
   } catch(e) {
     mostrarToast('Error al cargar datos');
   }
+}
+
+async function eliminarFilaSheet(hoja, id) {
+  // Find the row with matching ID and delete it
+  const rows = await leerHoja(hoja);
+  const idx = rows.findIndex(r => String(r[0]) === String(id));
+  if (idx === -1) return;
+  const sheetRow = idx + 1; // 1-based index
+  // Get spreadsheet to find sheet ID
+  const meta = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`,
+    { headers: { Authorization: 'Bearer ' + accessToken } }
+  );
+  const metaData = await meta.json();
+  const sheet = metaData.sheets.find(s => s.properties.title === hoja);
+  if (!sheet) return;
+  const sheetId = sheet.properties.sheetId;
+  await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`,
+    {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: { sheetId, dimension: 'ROWS', startIndex: sheetRow - 1, endIndex: sheetRow }
+          }
+        }]
+      })
+    }
+  );
 }
 
 async function limpiarHoja(hoja) {
@@ -643,6 +716,15 @@ function poblarSelectores() {
   });
 }
 
+function actualizarSaldoHeader() {
+  const totalIngresos = [...data.ventas, ...data.aportes].reduce((s,v) => s+v.monto, 0);
+  const totalEgresos = data.gastos.reduce((s,g) => s+g.monto, 0);
+  const saldo = totalIngresos - totalEgresos;
+  document.getElementById('saldo-header').textContent = pesos(saldo);
+  document.getElementById('saldo-header').style.color = saldo >= 0 ? 'var(--verde-texto)' : 'var(--rosa-texto)';
+  document.getElementById('header-saldo').style.display = 'flex';
+}
+
 function mostrarToast(msg, dur = 2500) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -757,9 +839,9 @@ function renderVentas() {
   const total = vs.reduce((s,v) => s+v.monto, 0);
   if (!vs.length) { document.getElementById('ventas-tabla').innerHTML = `<div class="vacio"><div class="vacio-icono">💰</div>Sin ventas este mes</div>`; return; }
   document.getElementById('ventas-tabla').innerHTML = `<table>
-    <thead><tr><th>Fecha</th><th>Tipo de servicio</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th></tr></thead>
-    <tbody>${vs.map(v=>`<tr><td>${formatFecha(v.fecha)}</td><td>${v.tipo}</td><td style="color:var(--gris-texto)">${v.desc||'—'}</td><td><span class="badge ${v.pago==='Efectivo'?'badge-amarillo':'badge-lavanda'}">${v.pago}</span></td><td style="text-align:right;font-weight:600;color:var(--verde-texto)">${pesos(v.monto)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="4" style="padding:10px">Total del mes</td><td style="text-align:right;padding:10px;color:var(--verde-texto)">${pesos(total)}</td></tr></tfoot>
+    <thead><tr><th>Fecha</th><th>Tipo de servicio</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th><th></th></tr></thead>
+    <tbody>${vs.map(v=>`<tr><td>${formatFecha(v.fecha)}</td><td>${v.tipo}</td><td style="color:var(--gris-texto)">${v.desc||'—'}</td><td><span class="badge ${v.pago==='Efectivo'?'badge-amarillo':'badge-lavanda'}">${v.pago}</span></td><td style="text-align:right;font-weight:600;color:var(--verde-texto)">${pesos(v.monto)}</td><td><button class="btn-peligro" onclick="eliminarVenta('${v.id}')" title="Eliminar">✕</button></td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="5" style="padding:10px">Total del mes</td><td style="text-align:right;padding:10px;color:var(--verde-texto)">${pesos(total)}</td><td></td></tr></tfoot>
   </table>`;
 }
 
@@ -769,9 +851,9 @@ function renderGastos() {
   const total = gs.reduce((s,g) => s+g.monto, 0);
   if (!gs.length) { document.getElementById('gastos-tabla').innerHTML = `<div class="vacio"><div class="vacio-icono">🧾</div>Sin gastos este mes</div>`; return; }
   document.getElementById('gastos-tabla').innerHTML = `<table>
-    <thead><tr><th>Fecha</th><th>Categoría</th><th>Proveedor</th><th>N° Doc.</th><th style="text-align:right">Monto</th></tr></thead>
-    <tbody>${gs.map(g=>`<tr><td>${formatFecha(g.fecha)}</td><td>${g.cat}</td><td style="color:var(--gris-texto)">${g.prov||'—'}</td><td style="color:var(--gris-texto)">${g.boleta||'—'}</td><td style="text-align:right;font-weight:600;color:var(--rosa-texto)">${pesos(g.monto)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="4" style="padding:10px">Total del mes</td><td style="text-align:right;padding:10px;color:var(--rosa-texto)">${pesos(total)}</td></tr></tfoot>
+    <thead><tr><th>Fecha</th><th>Categoría</th><th>Proveedor</th><th>N° Doc.</th><th style="text-align:right">Monto</th><th></th></tr></thead>
+    <tbody>${gs.map(g=>`<tr><td>${formatFecha(g.fecha)}</td><td>${g.cat}</td><td style="color:var(--gris-texto)">${g.prov||'—'}</td><td style="color:var(--gris-texto)">${g.boleta||'—'}</td><td style="text-align:right;font-weight:600;color:var(--rosa-texto)">${pesos(g.monto)}</td><td><button class="btn-peligro" onclick="eliminarGasto('${g.id}')" title="Eliminar">✕</button></td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="5" style="padding:10px">Total del mes</td><td style="text-align:right;padding:10px;color:var(--rosa-texto)">${pesos(total)}</td><td></td></tr></tfoot>
   </table>`;
 }
 
@@ -898,6 +980,36 @@ function renderActivos() {
       </div>
     </div>
   `;
+}
+
+async function eliminarVenta(id) {
+  if (!confirm('¿Eliminar esta venta?')) return;
+  mostrarToast('Eliminando...');
+  try {
+    await eliminarFilaSheet('VENTAS', id);
+    data.ventas = data.ventas.filter(v => String(v.id) !== String(id));
+    poblarSelectores();
+    renderVentas();
+    renderResumen();
+    actualizarSaldoHeader();
+    await sincronizarHojas();
+    mostrarToast('✓ Venta eliminada');
+  } catch(e) { mostrarToast('Error al eliminar'); console.error(e); }
+}
+
+async function eliminarGasto(id) {
+  if (!confirm('¿Eliminar este gasto?')) return;
+  mostrarToast('Eliminando...');
+  try {
+    await eliminarFilaSheet('GASTOS', id);
+    data.gastos = data.gastos.filter(g => String(g.id) !== String(id));
+    poblarSelectores();
+    renderGastos();
+    renderResumen();
+    actualizarSaldoHeader();
+    await sincronizarHojas();
+    mostrarToast('✓ Gasto eliminado');
+  } catch(e) { mostrarToast('Error al eliminar'); console.error(e); }
 }
 
 function exportarCSV() {
