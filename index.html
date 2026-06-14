@@ -132,6 +132,12 @@
 
   /* NOTA */
   .nota { background: var(--amarillo-claro); border: 1px solid var(--amarillo); border-radius: var(--radio-sm); padding: 10px 14px; font-size: 12px; color: var(--amarillo-texto); margin-top: 1rem; }
+  .grafico-leyenda { display: flex; gap: 16px; margin-bottom: 12px; font-size: 12px; color: var(--gris-texto); }
+  .grafico-leyenda span { display: flex; align-items: center; gap: 4px; }
+  .grafico-leyenda .punto { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .grafico-leyenda .punto.verde { background: #1D9E75; }
+  .grafico-leyenda .punto.rosa { background: #D4537E; }
+  .grafico-leyenda .linea.azul { width: 10px; height: 3px; background: #378ADD; display: inline-block; }
 
   /* VACÍO */
   .vacio { text-align: center; padding: 2.5rem; color: var(--gris-texto); font-size: 13px; }
@@ -209,11 +215,29 @@
 
     <!-- RESUMEN -->
     <div id="s-resumen" class="seccion active">
-      <div class="filtro-mes">
-        <label>Período:</label>
-        <select id="r-mes" onchange="renderResumen()"></select>
+      <div class="filtro-mes" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <label>Período:</label>
+          <select id="r-mes" onchange="cambiarVistaResumen('mes')"></select>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn-secundario" id="btn-vista-mes" onclick="cambiarVistaResumen('mes')" style="font-weight:600;background:var(--verde-claro);color:var(--verde-texto);border-color:var(--verde)">Por mes</button>
+          <button class="btn-secundario" id="btn-vista-todo" onclick="cambiarVistaResumen('todo')">Todos los períodos</button>
+        </div>
       </div>
       <div class="metricas" id="r-metricas"></div>
+      <div class="metricas" id="r-metricas-extra" style="display:none;margin-top:-0.5rem"></div>
+      <div class="tarjeta" id="r-grafico-card" style="display:none">
+        <div class="tarjeta-titulo"><div class="icono icono-lavanda">📈</div> Evolución mensual</div>
+        <div class="grafico-leyenda">
+          <span><span class="punto verde"></span>Ingresos</span>
+          <span><span class="punto rosa"></span>Gastos</span>
+          <span><span class="linea azul"></span>Utilidad</span>
+        </div>
+        <div style="position:relative;width:100%;height:240px">
+          <canvas id="chart-evolucion"></canvas>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
         <div class="tarjeta">
           <div class="tarjeta-titulo"><div class="icono icono-verde">💰</div> Últimas ventas</div>
@@ -810,7 +834,33 @@ async function agregarGasto() {
 }
 
 // RENDERS
+let vistaResumen = 'mes';
+let chartEvolucion = null;
+
+function cambiarVistaResumen(vista) {
+  vistaResumen = vista;
+  document.getElementById('btn-vista-mes').style.background = vista === 'mes' ? 'var(--verde-claro)' : 'var(--blanco)';
+  document.getElementById('btn-vista-mes').style.color = vista === 'mes' ? 'var(--verde-texto)' : 'var(--texto-suave)';
+  document.getElementById('btn-vista-mes').style.borderColor = vista === 'mes' ? 'var(--verde)' : 'var(--gris-borde)';
+  document.getElementById('btn-vista-todo').style.background = vista === 'todo' ? 'var(--verde-claro)' : 'var(--blanco)';
+  document.getElementById('btn-vista-todo').style.color = vista === 'todo' ? 'var(--verde-texto)' : 'var(--texto-suave)';
+  document.getElementById('btn-vista-todo').style.borderColor = vista === 'todo' ? 'var(--verde)' : 'var(--gris-borde)';
+  document.getElementById('r-mes').style.opacity = vista === 'todo' ? '0.4' : '1';
+  document.getElementById('r-mes').disabled = vista === 'todo';
+  renderResumen();
+}
+
 function renderResumen() {
+  if (vistaResumen === 'todo') {
+    renderResumenGeneral();
+  } else {
+    renderResumenMes();
+  }
+}
+
+function renderResumenMes() {
+  document.getElementById('r-metricas-extra').style.display = 'none';
+  document.getElementById('r-grafico-card').style.display = 'none';
   const mes = document.getElementById('r-mes').value;
   const vs = filtrarMes(data.ventas, mes);
   const gs = filtrarMes(data.gastos, mes);
@@ -823,14 +873,118 @@ function renderResumen() {
     <div class="metrica"><div class="metrica-label">Resultado</div><div class="metrica-valor ${utilidad>=0?'verde':'rosa'}">${pesos(utilidad)}</div></div>
     <div class="metrica"><div class="metrica-label">N° operaciones</div><div class="metrica-valor lavanda">${vs.length + gs.length}</div></div>
   `;
+  renderUltimasOperaciones(vs, gs);
+}
+
+function renderResumenGeneral() {
+  const meses = mesesDisponibles().slice().reverse(); // orden cronológico ascendente
+  const datosMensuales = meses.map(mes => {
+    const vs = filtrarMes(data.ventas, mes);
+    const gs = filtrarMes(data.gastos, mes);
+    const tv = vs.reduce((s,v) => s+v.monto, 0);
+    const tg = gs.reduce((s,g) => s+g.monto, 0);
+    return { mes, ingresos: tv, gastos: tg, utilidad: tv-tg, nOps: vs.length+gs.length };
+  });
+
+  const totalV = datosMensuales.reduce((s,m) => s+m.ingresos, 0);
+  const totalG = datosMensuales.reduce((s,m) => s+m.gastos, 0);
+  const totalU = totalV - totalG;
+  const totalOps = datosMensuales.reduce((s,m) => s+m.nOps, 0);
+
+  document.getElementById('r-metricas').innerHTML = `
+    <div class="metrica"><div class="metrica-label">Ingresos totales</div><div class="metrica-valor verde">${pesos(totalV)}</div></div>
+    <div class="metrica"><div class="metrica-label">Egresos totales</div><div class="metrica-valor rosa">${pesos(totalG)}</div></div>
+    <div class="metrica"><div class="metrica-label">Resultado acumulado</div><div class="metrica-valor ${totalU>=0?'verde':'rosa'}">${pesos(totalU)}</div></div>
+    <div class="metrica"><div class="metrica-label">Total operaciones</div><div class="metrica-valor lavanda">${totalOps}</div></div>
+  `;
+
+  // Tarjetas extra
+  const promedioMensual = datosMensuales.length ? totalU / datosMensuales.length : 0;
+  let mejorMes = '—';
+  if (datosMensuales.length) {
+    const mejor = datosMensuales.reduce((a,b) => b.utilidad > a.utilidad ? b : a);
+    const [y,mo] = mejor.mes.split('-');
+    mejorMes = MESES[parseInt(mo)-1] + ' ' + y;
+  }
+  const tipoCount = {};
+  data.ventas.forEach(v => { tipoCount[v.tipo] = (tipoCount[v.tipo]||0) + v.monto; });
+  let servicioTop = '—';
+  if (Object.keys(tipoCount).length) {
+    servicioTop = Object.entries(tipoCount).sort((a,b)=>b[1]-a[1])[0][0];
+  }
+
+  document.getElementById('r-metricas-extra').style.display = 'grid';
+  document.getElementById('r-metricas-extra').innerHTML = `
+    <div class="metrica"><div class="metrica-label">Promedio mensual</div><div class="metrica-valor lavanda">${pesos(promedioMensual)}</div></div>
+    <div class="metrica"><div class="metrica-label">Mejor mes</div><div class="metrica-valor">${mejorMes}</div></div>
+    <div class="metrica"><div class="metrica-label">Servicio top</div><div class="metrica-valor">${servicioTop}</div></div>
+  `;
+
+  // Gráfico de evolución
+  document.getElementById('r-grafico-card').style.display = 'block';
+  renderGraficoEvolucion(datosMensuales);
+
+  // Últimas operaciones (todas, sin filtrar)
+  const vsOrdenado = [...data.ventas].sort((a,b) => b.fecha.localeCompare(a.fecha));
+  const gsOrdenado = [...data.gastos].sort((a,b) => b.fecha.localeCompare(a.fecha));
+  renderUltimasOperaciones(vsOrdenado, gsOrdenado);
+}
+
+function renderUltimasOperaciones(vs, gs) {
   const last5V = vs.slice(0,5);
   document.getElementById('r-ultimas-ventas').innerHTML = last5V.length
     ? `<table><tbody>${last5V.map(v=>`<tr><td>${formatFecha(v.fecha)}</td><td>${v.tipo}</td><td style="text-align:right;font-weight:600;color:var(--verde-texto)">${pesos(v.monto)}</td></tr>`).join('')}</tbody></table>`
-    : `<div class="vacio"><div class="vacio-icono">💰</div>Sin ventas este mes</div>`;
+    : `<div class="vacio"><div class="vacio-icono">💰</div>Sin ventas registradas</div>`;
   const last5G = gs.slice(0,5);
   document.getElementById('r-ultimos-gastos').innerHTML = last5G.length
     ? `<table><tbody>${last5G.map(g=>`<tr><td>${formatFecha(g.fecha)}</td><td>${g.cat}</td><td style="text-align:right;font-weight:600;color:var(--rosa-texto)">${pesos(g.monto)}</td></tr>`).join('')}</tbody></table>`
-    : `<div class="vacio"><div class="vacio-icono">🧾</div>Sin gastos este mes</div>`;
+    : `<div class="vacio"><div class="vacio-icono">🧾</div>Sin gastos registrados</div>`;
+}
+
+function renderGraficoEvolucion(datosMensuales) {
+  const ctx = document.getElementById('chart-evolucion');
+  if (!ctx) return;
+  const labels = datosMensuales.map(m => {
+    const [y,mo] = m.mes.split('-');
+    return MESES[parseInt(mo)-1].substring(0,3) + ' ' + y.substring(2);
+  });
+  const ingresos = datosMensuales.map(m => m.ingresos);
+  const gastos = datosMensuales.map(m => m.gastos);
+  const utilidad = datosMensuales.map(m => m.utilidad);
+
+  if (chartEvolucion) chartEvolucion.destroy();
+  chartEvolucion = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: 'Ingresos', data: ingresos, backgroundColor: '#1D9E75', borderRadius: 4, order: 2 },
+        { type: 'bar', label: 'Gastos', data: gastos, backgroundColor: '#D4537E', borderRadius: 4, order: 2 },
+        { type: 'line', label: 'Utilidad', data: utilidad, borderColor: '#378ADD', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#378ADD', tension: 0.3, order: 1 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${pesos(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        y: {
+          ticks: { callback: v => '$' + Math.round(v/1000) + 'K', color: '#888780' },
+          grid: { color: 'rgba(136,135,128,0.15)' }
+        },
+        x: {
+          ticks: { color: '#888780' },
+          grid: { display: false }
+        }
+      }
+    }
+  });
 }
 
 function renderVentas() {
@@ -1031,6 +1185,7 @@ function exportarCSV() {
 }
 </script>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </body>
 </html>
