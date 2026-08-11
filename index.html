@@ -759,10 +759,12 @@ async function sincronizarHojas() {
     await escribirHoja('APORTES', filasAp);
 
     // LIBRO_CAJA — todos los movimientos de dinero en orden cronológico
+    const retirosOrdenCaja = [...data.retiros].sort((a,b) => a.fecha.localeCompare(b.fecha));
     const movsCompletos = [
       ...aportesOrden.map(v => ({fecha:v.fecha, concepto:'Aporte de socios — '+(v.desc||''), haber:v.monto, debe:0})),
       ...ventasOrden.map(v => ({fecha:v.fecha, concepto:v.tipo+(v.desc?' — '+v.desc:''), haber:v.monto, debe:0})),
-      ...gastosOrden.map(g => ({fecha:g.fecha, concepto:g.cat+(g.desc?' — '+g.desc:''), haber:0, debe:g.monto}))
+      ...gastosOrden.map(g => ({fecha:g.fecha, concepto:g.cat+(g.desc?' — '+g.desc:''), haber:0, debe:g.monto})),
+      ...retirosOrdenCaja.map(r => ({fecha:r.fecha, concepto:r.tipo+(r.socio?' — '+r.socio:'')+(r.desc?' — '+r.desc:''), haber:0, debe:r.monto}))
     ].sort((a,b) => a.fecha.localeCompare(b.fecha));
     const filasLCAja = [['#','Fecha','Concepto','Haber (Ingreso)','Debe (Egreso)','Saldo']];
     let saldoCaja = 0;
@@ -843,7 +845,8 @@ function poblarSelectores() {
 function actualizarSaldoHeader() {
   const totalIngresos = [...data.ventas, ...data.aportes].reduce((s,v) => s+v.monto, 0);
   const totalEgresos = data.gastos.reduce((s,g) => s+g.monto, 0);
-  const saldo = totalIngresos - totalEgresos;
+  const totalRetiros = data.retiros.reduce((s,r) => s+r.monto, 0);
+  const saldo = totalIngresos - totalEgresos - totalRetiros;
   document.getElementById('saldo-header').textContent = pesos(saldo);
   document.getElementById('saldo-header').style.color = saldo >= 0 ? 'var(--verde-texto)' : 'var(--rosa-texto)';
   document.getElementById('header-saldo').style.display = 'flex';
@@ -1116,8 +1119,9 @@ function renderCaja() {
   const mes = document.getElementById('c-mes').value;
   const ap = filtrarMes(data.aportes, mes).map(v=>({fecha:v.fecha,concepto:v.tipo+(v.desc?' — '+v.desc:''),tipo:'Haber',monto:v.monto}));
   const vs = filtrarMes(data.ventas, mes).map(v=>({fecha:v.fecha,concepto:v.tipo+(v.desc?' — '+v.desc:''),tipo:'Haber',monto:v.monto}));
+  const rets = filtrarMes(data.retiros, mes).map(r=>({fecha:r.fecha,concepto:r.tipo+(r.socio?' — '+r.socio:'')+(r.desc?' — '+r.desc:''),tipo:'Debe',monto:r.monto}));
   const gs = filtrarMes(data.gastos, mes).map(g=>({fecha:g.fecha,concepto:g.cat+(g.desc?' — '+g.desc:''),tipo:'Debe',monto:g.monto}));
-  const movs = [...ap,...vs,...gs].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const movs = [...ap,...vs,...gs,...rets].sort((a,b)=>a.fecha.localeCompare(b.fecha));
   if (!movs.length) { document.getElementById('caja-tabla').innerHTML = `<div class="vacio"><div class="vacio-icono">📒</div>Sin movimientos este mes</div>`; return; }
   let saldo = 0;
   const rows = movs.map((m,i) => {
@@ -1200,13 +1204,18 @@ function renderBalance() {
 
 function renderActivos() {
   const activos = data.gastos.filter(g => g.cat === 'Activo fijo (equipos)');
-  const pasivos = data.aportes;
   const totalActivos = activos.reduce((s,g) => s+g.monto, 0);
-  const totalPasivos = pasivos.reduce((s,g) => s+g.monto, 0);
+
+  // Pasivo neto = aporte original - devoluciones realizadas
+  const totalAportado = data.aportes.reduce((s,a) => s+a.monto, 0);
+  const totalDevuelto = data.retiros.filter(r => r.tipo === 'Devolución aporte').reduce((s,r) => s+r.monto, 0);
+  const pasivoNeto = totalAportado - totalDevuelto;
+
   const totalVentas = data.ventas.reduce((s,v) => s+v.monto, 0);
   const totalGastosOp = data.gastos.filter(g => g.cat !== 'Activo fijo (equipos)' && g.cat !== 'Aporte de socios' && g.cat !== 'Pasivo — Aporte de socios').reduce((s,g) => s+g.monto, 0);
-  const utilidad = totalVentas - totalGastosOp;
-  const patrimonio = totalActivos - totalPasivos + utilidad;
+  const totalRetiradoUtilidades = data.retiros.filter(r => r.tipo === 'Retiro utilidades').reduce((s,r) => s+r.monto, 0);
+  const utilidad = totalVentas - totalGastosOp - totalRetiradoUtilidades;
+  const patrimonio = totalActivos - pasivoNeto + utilidad;
 
   document.getElementById('activos-tabla').innerHTML = activos.length ? `<table>
     <thead><tr><th>#</th><th>Fecha adquisición</th><th>Activo</th><th>Descripción</th><th style="text-align:right">Valor</th></tr></thead>
@@ -1214,11 +1223,14 @@ function renderActivos() {
     <tfoot><tr><td colspan="4" style="padding:10px;font-weight:600">Total activos fijos</td><td style="text-align:right;padding:10px;font-weight:600;color:var(--lavanda-texto)">${pesos(totalActivos)}</td></tr></tfoot>
   </table>` : `<div class="vacio"><div class="vacio-icono">🏭</div>Sin activos registrados</div>`;
 
-  document.getElementById('pasivos-tabla').innerHTML = pasivos.length ? `<table>
-    <thead><tr><th>#</th><th>Fecha</th><th>Concepto</th><th>Descripción</th><th style="text-align:right">Monto</th></tr></thead>
-    <tbody>${pasivos.map((g,i) => `<tr><td>${i+1}</td><td>${formatFecha(g.fecha)}</td><td style="font-weight:500">Aporte de socios</td><td style="color:var(--gris-texto)">${g.desc||'—'}</td><td style="text-align:right;font-weight:600;color:var(--rosa-texto)">${pesos(g.monto)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="4" style="padding:10px;font-weight:600">Total pasivos</td><td style="text-align:right;padding:10px;font-weight:600;color:var(--rosa-texto)">${pesos(totalPasivos)}</td></tr></tfoot>
-  </table>` : `<div class="vacio"><div class="vacio-icono">💳</div>Sin pasivos registrados</div>`;
+  document.getElementById('pasivos-tabla').innerHTML = `<table>
+    <thead><tr><th>Concepto</th><th style="text-align:right">Monto</th></tr></thead>
+    <tbody>
+      <tr><td>Aporte inicial de socios</td><td style="text-align:right;color:var(--rosa-texto)">${pesos(totalAportado)}</td></tr>
+      <tr><td style="color:var(--gris-texto)">Devoluciones realizadas</td><td style="text-align:right;color:var(--verde-texto)">-${pesos(totalDevuelto)}</td></tr>
+    </tbody>
+    <tfoot><tr><td style="padding:10px;font-weight:600">Pasivo pendiente</td><td style="text-align:right;padding:10px;font-weight:600;color:var(--rosa-texto)">${pesos(pasivoNeto)}</td></tr></tfoot>
+  </table>`;
 
   document.getElementById('situacion-contenido').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
@@ -1229,7 +1241,7 @@ function renderActivos() {
       </div>
       <div>
         <div class="balance-seccion-titulo">Pasivos y patrimonio</div>
-        <div class="balance-fila"><span style="color:var(--gris-texto)">Aporte de socios</span><span style="color:var(--rosa-texto)">${pesos(totalPasivos)}</span></div>
+        <div class="balance-fila"><span style="color:var(--gris-texto)">Aporte de socios (pendiente)</span><span style="color:var(--rosa-texto)">${pesos(pasivoNeto)}</span></div>
         <div class="balance-fila"><span style="color:var(--gris-texto)">Resultado acumulado</span><span style="color:${utilidad>=0?'var(--verde-texto)':'var(--rosa-texto)'}">${pesos(utilidad)}</span></div>
         <div class="balance-fila total"><span>Patrimonio neto</span><span style="color:${patrimonio>=0?'var(--verde-texto)':'var(--rosa-texto)'}">${pesos(patrimonio)}</span></div>
       </div>
