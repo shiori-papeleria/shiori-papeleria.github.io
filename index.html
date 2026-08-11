@@ -968,14 +968,16 @@ function renderResumenMes() {
   const mes = document.getElementById('r-mes').value;
   const vs = filtrarMes(data.ventas, mes);
   const gs = filtrarMes(data.gastos, mes);
+  const rets = filtrarMes(data.retiros, mes);
   const totalV = vs.reduce((s,v) => s+v.monto, 0);
   const totalG = gs.reduce((s,g) => s+g.monto, 0);
-  const utilidad = totalV - totalG;
+  const totalRets = rets.reduce((s,r) => s+r.monto, 0);
+  const utilidad = totalV - totalG - totalRets;
   document.getElementById('r-metricas').innerHTML = `
     <div class="metrica"><div class="metrica-label">Ingresos (Haber)</div><div class="metrica-valor verde">${pesos(totalV)}</div></div>
     <div class="metrica"><div class="metrica-label">Egresos (Debe)</div><div class="metrica-valor rosa">${pesos(totalG)}</div></div>
     <div class="metrica"><div class="metrica-label">Resultado</div><div class="metrica-valor ${utilidad>=0?'verde':'rosa'}">${pesos(utilidad)}</div></div>
-    <div class="metrica"><div class="metrica-label">N° operaciones</div><div class="metrica-valor lavanda">${vs.length + gs.length}</div></div>
+    <div class="metrica"><div class="metrica-label">N° operaciones</div><div class="metrica-valor lavanda">${vs.length + gs.length + rets.length}</div></div>
   `;
   renderUltimasOperaciones(vs, gs);
 }
@@ -985,9 +987,11 @@ function renderResumenGeneral() {
   const datosMensuales = meses.map(mes => {
     const vs = filtrarMes(data.ventas, mes);
     const gs = filtrarMes(data.gastos, mes);
+    const rets = filtrarMes(data.retiros, mes);
     const tv = vs.reduce((s,v) => s+v.monto, 0);
     const tg = gs.reduce((s,g) => s+g.monto, 0);
-    return { mes, ingresos: tv, gastos: tg, utilidad: tv-tg, nOps: vs.length+gs.length };
+    const tr = rets.reduce((s,r) => s+r.monto, 0);
+    return { mes, ingresos: tv, gastos: tg+tr, utilidad: tv-tg-tr, nOps: vs.length+gs.length+rets.length };
   });
 
   const totalV = datosMensuales.reduce((s,m) => s+m.ingresos, 0);
@@ -1171,11 +1175,14 @@ function renderBalance() {
   const mesNombre = MESES[parseInt(mo)-1] + ' ' + y;
   const vs = filtrarMes(data.ventas, mes);
   const gs = filtrarMes(data.gastos, mes);
+  const rets = filtrarMes(data.retiros, mes);
   const totalV = vs.reduce((s,v) => s+v.monto, 0);
   const totalG = gs.reduce((s,g) => s+g.monto, 0);
-  const utilidad = totalV - totalG;
+  const totalRets = rets.reduce((s,r) => s+r.monto, 0);
+  const utilidad = totalV - totalG - totalRets;
   const catG = {};
   gs.forEach(g => { catG[g.cat] = (catG[g.cat]||0) + g.monto; });
+  rets.forEach(r => { catG[r.tipo] = (catG[r.tipo]||0) + r.monto; });
   const tipoV = {};
   vs.forEach(v => { tipoV[v.tipo] = (tipoV[v.tipo]||0) + v.monto; });
   const filasV = Object.entries(tipoV).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="balance-fila"><span style="color:var(--gris-texto)">${k}</span><span style="color:var(--verde-texto)">${pesos(v)}</span></div>`).join('');
