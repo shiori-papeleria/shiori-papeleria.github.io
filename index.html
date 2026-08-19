@@ -972,10 +972,12 @@ function renderResumenMes() {
   const totalV = vs.reduce((s,v) => s+v.monto, 0);
   const totalG = gs.reduce((s,g) => s+g.monto, 0);
   const totalRets = rets.reduce((s,r) => s+r.monto, 0);
-  const utilidad = totalV - totalG - totalRets;
+  const totalEgresos = totalG + totalRets;
+  const utilidad = totalV - totalEgresos;
+  console.log('Mes:', mes, 'Retiros:', rets, 'totalRets:', totalRets, 'totalEgresos:', totalEgresos);
   document.getElementById('r-metricas').innerHTML = `
     <div class="metrica"><div class="metrica-label">Ingresos (Haber)</div><div class="metrica-valor verde">${pesos(totalV)}</div></div>
-    <div class="metrica"><div class="metrica-label">Egresos (Debe)</div><div class="metrica-valor rosa">${pesos(totalG)}</div></div>
+    <div class="metrica"><div class="metrica-label">Egresos (Debe)</div><div class="metrica-valor rosa">${pesos(totalEgresos)}</div></div>
     <div class="metrica"><div class="metrica-label">Resultado</div><div class="metrica-valor ${utilidad>=0?'verde':'rosa'}">${pesos(utilidad)}</div></div>
     <div class="metrica"><div class="metrica-label">N° operaciones</div><div class="metrica-valor lavanda">${vs.length + gs.length + rets.length}</div></div>
   `;
