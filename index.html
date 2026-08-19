@@ -631,7 +631,7 @@ async function cargarDatos() {
     const retirosRaw = await leerHoja('RETIROS');
     data.retiros = (retirosRaw.slice(1) || []).map(r => ({
       id: r[0], fecha: r[1], tipo: r[2], socio: r[3]||'', monto: parseFloat(r[4])||0, pago: r[5]||'', desc: r[6]||''
-    })).filter(r => r.fecha);
+    })).filter(r => r.fecha && /^\d{4}-\d{2}-\d{2}$/.test(r.fecha));
     data.retiros.sort((a,b) => b.fecha.localeCompare(a.fecha));
     const aportesRaw = await leerHoja('APORTES');
     data.aportes = (aportesRaw.slice(1) || []).map(r => ({
@@ -784,16 +784,8 @@ async function sincronizarHojas() {
     await limpiarHoja('ACTIVOS_FIJOS');
     await escribirHoja('ACTIVOS_FIJOS', filasAF);
 
-    // RETIROS
-    const retirosOrdenSync = [...data.retiros].sort((a,b) => a.fecha.localeCompare(b.fecha));
-    const filasRet = [['#','Fecha','Tipo','Socio','Monto','Medio de pago','Descripción']];
-    retirosOrdenSync.forEach((r,i) => filasRet.push([i+1, r.fecha, r.tipo, r.socio, r.monto, r.pago, r.desc||'']));
-    const totalDev = retirosOrdenSync.filter(r=>r.tipo==='Devolución aporte').reduce((s,r)=>s+r.monto,0);
-    const totalRet = retirosOrdenSync.filter(r=>r.tipo==='Retiro utilidades').reduce((s,r)=>s+r.monto,0);
-    filasRet.push(['','','','Total devoluciones:', totalDev, '','']);
-    filasRet.push(['','','','Total retiros:', totalRet, '','']);
-    await limpiarHoja('RETIROS');
-    await escribirHoja('RETIROS', filasRet);
+    // RETIROS — no se sincroniza aquí porque es fuente de verdad
+    // Los datos se escriben directamente al registrar desde la app
 
     mostrarToast('✓ Planilla sincronizada');
   } catch(e) {
@@ -974,7 +966,6 @@ function renderResumenMes() {
   const totalRets = rets.reduce((s,r) => s+r.monto, 0);
   const totalEgresos = totalG + totalRets;
   const utilidad = totalV - totalEgresos;
-  console.log('Mes:', mes, 'Retiros:', rets, 'totalRets:', totalRets, 'totalEgresos:', totalEgresos);
   document.getElementById('r-metricas').innerHTML = `
     <div class="metrica"><div class="metrica-label">Ingresos (Haber)</div><div class="metrica-valor verde">${pesos(totalV)}</div></div>
     <div class="metrica"><div class="metrica-label">Egresos (Debe)</div><div class="metrica-valor rosa">${pesos(totalEgresos)}</div></div>
